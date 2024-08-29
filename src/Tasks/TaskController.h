@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "TaskType.h"
+#include "TaskBase.h"
 
 class TaskController{
 
@@ -22,10 +23,16 @@ class TaskController{
         void addTaskType(TaskType taskType) { taskTypes.push_back(taskType); }
         list<TaskType> getAllTaskTypes(){ return taskTypes; }
 
+        void addTask(TaskBase *task) { tasks.push_back(task); }
+
+
+
+
         void init();
 
     private:
         list<TaskType> taskTypes;
+        list<TaskBase*> tasks;
 
 
 };

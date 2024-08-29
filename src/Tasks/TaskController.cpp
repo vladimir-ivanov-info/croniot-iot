@@ -17,4 +17,11 @@ void TaskController::init(){
     //TaskLedTest *task = new TaskLedTest(); // Example parameter values
     //task->run();
 
+    for(TaskBase *task : tasks){
+        task->run();
+    }
+
+    Serial.println("TaskController initialized...");
+        Serial.println(tasks.size());
+
 }

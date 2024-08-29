@@ -37,6 +37,11 @@ void SensorsController::init(){
    // SensorSolarPanel *sensor4 = new SensorSolarPanel();
    // sensor4->run();
 */
+
+    for(Sensor *sensor : sensors){
+        sensor->run();
+    }
+
 }
 
 void SensorsController::uninit(){

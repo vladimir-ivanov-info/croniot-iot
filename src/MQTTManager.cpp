@@ -7,11 +7,6 @@
 void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
     String topicStr = String(topic);
     Serial.print("MQTT message arrived on topic: "); Serial.println(topicStr);
-    /*Serial.print("Message: ");
-    for (int i = 0; i < length; i++) {
-        Serial.print((char)payload[i]);
-    }
-    Serial.println();*/
 
     if (instance().topicTaskMap.find(topicStr) != instance().topicTaskMap.end()) {
         Serial.print("MQTT topic correct: ["); Serial.print(topic); Serial.println("]");
@@ -48,7 +43,6 @@ void MQTTManager::init(){
     ServerData serverData = Storage::instance().getServerData();
     String serverAddress = serverData.serverAddress;
 
-    //client.setServer(serverAddress.c_str(), static_cast<uint16_t>(SERVER_PORT_MQTT));
     uint16_t serverMqttPort = NetworkManager::instance().serverMqttPort;
     client.setServer(serverAddress.c_str(), serverMqttPort);
 
@@ -90,6 +84,14 @@ void MQTTManager::publish(String topic, String message){
                 boolean succes = client.publish(topic.c_str(), message.c_str());
             } else {
                 Serial.println("---------->>>Mqtt client not connected, trying to reconnect");
+
+                //TODO check if we need to assign the server and port or the mqtt client  alreadyremembers them
+                ServerData serverData = Storage::instance().getServerData();
+                String serverAddress = serverData.serverAddress;
+
+                uint16_t serverMqttPort = NetworkManager::instance().serverMqttPort;
+                client.setServer(serverAddress.c_str(), serverMqttPort);
+
                 client.connect("ESP32Client");
             }
 

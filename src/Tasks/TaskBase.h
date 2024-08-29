@@ -25,7 +25,7 @@ class TaskBase {
 
         virtual void loop() = 0;
         
-
+        virtual void run() = 0;
 
         void init(){
             //xTaskCreatePinnedToCore(taskFunction, "name", 4096, this, 1, &taskHandle, 1);

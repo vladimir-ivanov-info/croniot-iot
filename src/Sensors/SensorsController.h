@@ -19,6 +19,8 @@
 
 #include "Messages/MessageSensorData.h"
 
+#include "Sensor.h"
+
 
 class SensorsController{
 
@@ -34,6 +36,8 @@ class SensorsController{
         void addSensorType(SensorType *sensorType){ sensorTypes.push_back(sensorType); }
         list<SensorType*> getAllSensorTypes(){ return sensorTypes; }
 
+        void addSensor(Sensor *sensor){ sensors.push_back(sensor); }
+
 
         void init(); //initializes the map of sensors and runs each sensor's task //TODO rename to "runSensorTasks"
         void uninit();
@@ -42,11 +46,12 @@ class SensorsController{
     private:
 
         list<SensorType*> sensorTypes;
+        list<Sensor*> sensors;
 
         //SensorWiFiStrength *sensorWifiSignal;
        // SensorBattery *sensorBattery;
 
-        std::map<int, SensorType> sensors;
+       // std::map<int, SensorType> sensors;
 
         TaskHandle_t taskHandle = NULL;
 

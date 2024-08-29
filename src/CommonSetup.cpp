@@ -81,7 +81,10 @@ void CommonSetup::handleMqtt(){
     }
     
     if(MQTTManager::instance().initialized){
+       // Serial.println("MQTT Manager initialized...");
         MQTTManager::instance().getClient()->loop();
+       // Serial.println("MQTT Manager looped...");
+        //Serial.print("Task controller state: "); Serial.println(taskControllerInitialized);
 
         if(!taskControllerInitialized){
           TaskController::instance().init();
