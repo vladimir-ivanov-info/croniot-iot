@@ -46,9 +46,9 @@ void MQTTManager::init(){
     uint16_t serverMqttPort = NetworkManager::instance().serverMqttPort;
     client.setServer(serverAddress.c_str(), serverMqttPort);
 
-    client.setCallback([this](char* topic, byte* payload, unsigned int length) {
+    /*client.setCallback([this](char* topic, byte* payload, unsigned int length) {
         this->callback(topic, payload, length);
-    });
+    });*/
    
 
     while (!client.connected()) {
@@ -56,6 +56,9 @@ void MQTTManager::init(){
         if (client.connect("ESP32Client")) {
             //client->setKeepAlive(60*60); // Set keep-alive interval to 15 seconds (adjust as needed)
             Serial.println("Connected to MQTT broker.");
+    client.setCallback([this](char* topic, byte* payload, unsigned int length) {
+        this->callback(topic, payload, length);
+    });
             initialized = true;
             break;
         } else {
@@ -69,8 +72,15 @@ void MQTTManager::init(){
 
 void MQTTManager::registerCallback(String topic, TaskBase* taskInstance) {
     topicTaskMap[topic] = taskInstance;
-    client.subscribe(topic.c_str());
+    bool subscriptionSuccess = client.subscribe(topic.c_str(), MQTTQOS0); //MQTTQOS2 : QoS = exactly once
+    if (subscriptionSuccess) {
+    Serial.print("Successfully subscribed to topic: ");
+    Serial.println(topic);
     Serial.print("MQTT callback registered: ["); Serial.print(topic); Serial.println("]");
+    } else {
+        Serial.print("Failed to subscribe to topic: ");
+        Serial.println(topic);
+    }
 }
 
 void MQTTManager::uninit(){

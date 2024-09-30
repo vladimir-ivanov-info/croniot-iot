@@ -19,7 +19,7 @@ void CommonSetup::setup(){
 void CommonSetup::setupWifi(){
   Serial.println();
   WiFi.mode(WIFI_STA);
- // WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
+      //    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
 
   WiFi.onEvent(CommonSetup::wifiEventHandler);
 
@@ -29,7 +29,6 @@ void CommonSetup::setupWifi(){
   WiFi.begin(wifiSsid, wifiPassword);
 }
 
-//void CommonSetup::wifiEventHandler(WiFiEvent_t event) {
 void CommonSetup::wifiEventHandler(WiFiEvent_t event) {
   CommonSetup &instance = CommonSetup::instance();  // Get the singleton instance
 
@@ -48,6 +47,7 @@ void CommonSetup::wifiEventHandler(WiFiEvent_t event) {
             NetworkManager::instance().setConnectedToWifi(false);
             Serial.println("WiFi disconnected");
             instance.setWifiConnected(false);
+            // WiFi.begin(wifiSsid, wifiPassword);
             break;
         default:
             break;
@@ -68,9 +68,31 @@ void CommonSetup::setWifiConnected(bool connected){
   }
 }
 
+void CommonSetup::mqttTask(void *pvParameters) {
+
+  CommonSetup *instance = static_cast<CommonSetup *>(pvParameters);
+  while (true) {
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    instance->handleMqtt();
+  }
+}
+
 void CommonSetup::loop(){
-  vTaskDelay(500 / portTICK_PERIOD_MS);
-  handleMqtt();
+  // Create a FreeRTOS task for the MQTT loop with higher priority
+  if(!taskCreated){
+    taskCreated = true;
+
+    xTaskCreatePinnedToCore(
+      mqttTask,         // Task function
+      "MQTT Task",      // Name of task
+      8192,             // Stack size (adjust if needed)
+      this,             // Task input parameter
+      2,                // Priority (2 is higher than the default of 1)
+      &mqttTaskHandle,  // Task handle
+      1                 // Core to run the task on (1 = core 1 on dual-core ESP32)
+    );
+
+  }
 }
 
 void CommonSetup::handleMqtt(){
@@ -81,11 +103,7 @@ void CommonSetup::handleMqtt(){
     }
     
     if(MQTTManager::instance().initialized){
-       // Serial.println("MQTT Manager initialized...");
         MQTTManager::instance().getClient()->loop();
-       // Serial.println("MQTT Manager looped...");
-        //Serial.print("Task controller state: "); Serial.println(taskControllerInitialized);
-
         if(!taskControllerInitialized){
           TaskController::instance().init();
           taskControllerInitialized = true;

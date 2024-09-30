@@ -35,6 +35,12 @@ class CommonSetup{
         void setWifiConnected(bool connected);
 
         void handleMqtt();
+
+        bool taskCreated = false;
+
+static void mqttTask(void *pvParameters);
+TaskHandle_t mqttTaskHandle;
+
 };
 
 #endif

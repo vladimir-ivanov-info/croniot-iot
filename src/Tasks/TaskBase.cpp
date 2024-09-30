@@ -46,13 +46,9 @@ void TaskBase::enqueueMessage(const String& topic, byte* payload, unsigned int l
 
 void TaskBase::taskFunction(void* pvParameters) {
     TaskBase* taskInstance = static_cast<TaskBase*>(pvParameters);
-    //int iteration = 1;
 
     while (true) {
-        //Serial.print("Iteration: "); Serial.println(iteration);
         taskInstance->loop();
-        //Serial.print("End iteration: "); Serial.println(iteration);
-        //iteration++;
     }
 }
 
