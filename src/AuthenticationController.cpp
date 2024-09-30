@@ -6,9 +6,7 @@ void AuthenticationController::init(){
 
     UserCredentials credentials = Storage::instance().readUserCredentials();
 
-
    Serial.println("Credentials: [accountEmail=" + credentials.accountEmail + "] " + credentials.accountPassword + " " + credentials.deviceUuid + " " + credentials.deviceToken);
-
 
   if(!forceRegisterDevice 
     && credentials.accountEmail != "null" && /*credentials.accountEmail.isNull() &&*/ !credentials.accountEmail.isEmpty() 
@@ -72,7 +70,7 @@ void AuthenticationController::registerDevice(){
     String serverAddress = NetworkManager::instance().serverAddress;
     String serverPort = String(NetworkManager::instance().serverPort);
 
-    String serverRegisterCLientUrl = "http://" + serverAddress +  + ":" + serverPort + "/api/register_client";
+    String serverRegisterCLientUrl = "http://" + serverAddress +  + ":" + serverPort + ROUTE_REGISTER_CLIENT;
     Serial.println("Register device query to: " + serverRegisterCLientUrl);
     http.begin(serverRegisterCLientUrl);
 
@@ -199,7 +197,7 @@ void AuthenticationController::registerTasks(){
     Serial.println("Registering task:");
     Serial.println(json4);
 
-    Result result4 = sendHttpPost(json4, "/api/register_task_type");
+    Result result4 = sendHttpPost(json4, ROUTE_REGISTER_TASK_TYPE);
     Serial.println("Response:");
     Serial.println(result4.toString());
   }
