@@ -9,8 +9,6 @@ class Sensor {
 
     private:
 
-
-
 };
 
 

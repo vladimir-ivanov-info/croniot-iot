@@ -8,7 +8,6 @@
 #include "Tasks/TaskController.h"
 #include "AuthenticationController.h"
 
-
 class CommonSetup{
 
     public:
@@ -20,7 +19,7 @@ class CommonSetup{
             return *_instance;
         }
 
-        void setup();
+        void setup(UserCredentials userCredentials);
         void loop();
 
 
@@ -38,8 +37,10 @@ class CommonSetup{
 
         bool taskCreated = false;
 
-static void mqttTask(void *pvParameters);
-TaskHandle_t mqttTaskHandle;
+        static void mqttTask(void *pvParameters);
+        TaskHandle_t mqttTaskHandle;
+
+        UserCredentials userCredentials;
 
 };
 

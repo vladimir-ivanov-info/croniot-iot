@@ -45,7 +45,7 @@ Result AuthenticationController::login(UserCredentials credentials){
 
     String jsonPayload = messageLogin.toJson();
 
-    Result result = sendHttpPost(jsonPayload, "/api/iot/login");
+    Result result = sendHttpPost(jsonPayload, ROUTE_IOT_LOGIN);
 
     Serial.println("Result login:");
     Serial.println(result.toString());
@@ -54,13 +54,14 @@ Result AuthenticationController::login(UserCredentials credentials){
 }
 
 void AuthenticationController::registerDevice(){
+    UserCredentials credentials = Storage::instance().readUserCredentials();
 
-    String accountEmail = "email1@gmail.com";
-    String accountPassword = "password1";
-    String deviceUuid = "esp32uuid_watering_system";
-    String deviceName = "Watering system";
-    String deviceDescription = "This device is for watering plants. You can choose different tasks: do you want to water the plants now or set an alarm for automatic watering later?";
-    
+    String accountEmail = credentials.accountEmail;
+    String accountPassword = credentials.accountPassword;
+    String deviceUuid = credentials.deviceUuid;
+    String deviceName = credentials.deviceName;
+    String deviceDescription = credentials.deviceDescription;
+
     MessageRegisterDevice messageRegisterDevice(accountEmail, accountPassword, deviceUuid, deviceName, deviceDescription);
 
     String jsonPayload = messageRegisterDevice.toJson();
@@ -89,7 +90,7 @@ void AuthenticationController::registerDevice(){
           Result result = parseResult(response);
 
           if(result.success){
-            UserCredentials userCredentials(accountEmail, accountPassword, deviceUuid, result.message);
+            UserCredentials userCredentials(accountEmail, accountPassword, deviceUuid, result.message, deviceName, deviceDescription);
 
             Serial.println("Saving new credentials");
             Storage::instance().saveUserCredentials(userCredentials);

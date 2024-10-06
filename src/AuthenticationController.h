@@ -5,8 +5,6 @@
 
 #include <HTTPClient.h>
 
-//#include "secrets.h"
-
 #include "Messages/MessageRegisterDevice.h"
 #include "Messages/MessageRegisterSensorType.h"
 #include "Messages/MessageRegisterTaskType.h"
@@ -19,15 +17,6 @@
 
 #include <map>
 
-//#include "Tasks/Heartbeat/SystemTaskHeartbeat.h"
-/*
-struct UserCredentials {
-    String accountEmail;
-    String accountPassword;
-    String deviceUuid;
-    String deviceToken;
-};
-*/
 class AuthenticationController{
 
     public:
@@ -54,7 +43,8 @@ class AuthenticationController{
 
         Result parseResult(const String& jsonString);
     private:
-
+        String ROUTE_IOT_LOGIN = "/api/iot/login";
+        String ROUTE_REGISTER_CLIENT = "/api/register_client";
         String ROUTE_REGISTER_TASK_TYPE = "/api/register_task_type";
         String ROUTE_REGISTER_SENSOR_TYPE = "/api/register_sensor_type";
 

@@ -7,7 +7,6 @@
 
 class TaskController{
 
-
     public:
 
         static TaskController & instance() {
@@ -24,10 +23,6 @@ class TaskController{
         list<TaskType> getAllTaskTypes(){ return taskTypes; }
 
         void addTask(TaskBase *task) { tasks.push_back(task); }
-
-
-
-
         void init();
 
     private:

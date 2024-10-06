@@ -8,7 +8,11 @@ class UserCredentials{
     public:
         UserCredentials(){}
 
-        UserCredentials(String accountEmail, String accountPassword, String deviceUuid, String deviceToken) : accountEmail(accountEmail), accountPassword(accountPassword), deviceUuid(deviceUuid), deviceToken(deviceToken){
+        UserCredentials(String accountEmail, String accountPassword, String deviceUuid, String deviceToken, String deviceName, String deviceDescription) 
+        
+        : accountEmail(accountEmail), accountPassword(accountPassword), deviceUuid(deviceUuid), deviceToken(deviceToken), deviceName(deviceName), deviceDescription(deviceDescription)
+        
+        {
 
         }
         
@@ -16,6 +20,8 @@ class UserCredentials{
         String accountPassword;
         String deviceUuid;
         String deviceToken;
+        String deviceName;
+        String deviceDescription;
 
 };
 

@@ -46,25 +46,18 @@ void MQTTManager::init(){
     uint16_t serverMqttPort = NetworkManager::instance().serverMqttPort;
     client.setServer(serverAddress.c_str(), serverMqttPort);
 
-    /*client.setCallback([this](char* topic, byte* payload, unsigned int length) {
-        this->callback(topic, payload, length);
-    });*/
-   
-
     while (!client.connected()) {
         Serial.println("Connecting to MQTT...");
         if (client.connect("ESP32Client")) {
             //client->setKeepAlive(60*60); // Set keep-alive interval to 15 seconds (adjust as needed)
             Serial.println("Connected to MQTT broker.");
-    client.setCallback([this](char* topic, byte* payload, unsigned int length) {
-        this->callback(topic, payload, length);
-    });
+            client.setCallback([this](char* topic, byte* payload, unsigned int length) {
+                this->callback(topic, payload, length);
+            });
             initialized = true;
             break;
         } else {
-            Serial.print("MQTT connection failed, rc=");
-            Serial.print(client.state());
-            Serial.println(" Retrying in 1 second...");
+            Serial.print("MQTT connection failed, rc="); Serial.print(client.state()); Serial.println(" Retrying in 1 second...");
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
     }
@@ -74,13 +67,11 @@ void MQTTManager::registerCallback(String topic, TaskBase* taskInstance) {
     topicTaskMap[topic] = taskInstance;
     bool subscriptionSuccess = client.subscribe(topic.c_str(), MQTTQOS0); //MQTTQOS2 : QoS = exactly once
     if (subscriptionSuccess) {
-    Serial.print("Successfully subscribed to topic: ");
-    Serial.println(topic);
-    Serial.print("MQTT callback registered: ["); Serial.print(topic); Serial.println("]");
+        Serial.print("MQTT callback registered: ["); Serial.print(topic); Serial.println("]");
     } else {
-        Serial.print("Failed to subscribe to topic: ");
-        Serial.println(topic);
+        Serial.print("Failed to subscribe to topic: ["); Serial.print(topic); Serial.print("]");
     }
+        
 }
 
 void MQTTManager::uninit(){
@@ -95,7 +86,7 @@ void MQTTManager::publish(String topic, String message){
             } else {
                 Serial.println("---------->>>Mqtt client not connected, trying to reconnect");
 
-                //TODO check if we need to assign the server and port or the mqtt client  alreadyremembers them
+                //TODO check if we need to assign the server and port or the mqtt client already remembers them
                 ServerData serverData = Storage::instance().getServerData();
                 String serverAddress = serverData.serverAddress;
 

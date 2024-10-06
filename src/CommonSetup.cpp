@@ -1,8 +1,22 @@
 #include "CommonSetup.h"
-
 #include <WiFi.h>
 
-void CommonSetup::setup(){
+void CommonSetup::setup(UserCredentials userCredentials){
+
+  UserCredentials credentialsInMemory = Storage::instance().readUserCredentials();
+
+  if(credentialsInMemory.accountEmail != userCredentials.accountEmail 
+  || credentialsInMemory.accountPassword != userCredentials.accountPassword 
+  || credentialsInMemory.deviceUuid != userCredentials.deviceUuid){
+
+    UserCredentials newCredentials = 
+        UserCredentials(userCredentials.accountEmail, userCredentials.accountPassword, userCredentials.deviceUuid, "", userCredentials.deviceName, userCredentials.deviceDescription);
+    
+    Storage::instance().saveUserCredentials(userCredentials);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+
+  //After this step, now we can finally connect to WiFi and to the server:
 
   setWifiConnected(false);
 
@@ -19,7 +33,7 @@ void CommonSetup::setup(){
 void CommonSetup::setupWifi(){
   Serial.println();
   WiFi.mode(WIFI_STA);
-      //    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
+    //    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
 
   WiFi.onEvent(CommonSetup::wifiEventHandler);
 

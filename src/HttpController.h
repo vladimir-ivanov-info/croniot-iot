@@ -7,7 +7,6 @@
 
 #include "NetworkManager.h"
 
-
 class HttpController{
 
     public:
