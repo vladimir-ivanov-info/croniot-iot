@@ -66,13 +66,13 @@ void AuthenticationController::registerDevice(){
 
     String jsonPayload = messageRegisterDevice.toJson();
 
-    HTTPClient http;
-
     String serverAddress = NetworkManager::instance().serverAddress;
     String serverPort = String(NetworkManager::instance().serverPort);
 
     String serverRegisterCLientUrl = "http://" + serverAddress +  + ":" + serverPort + ROUTE_REGISTER_CLIENT;
     Serial.println("Register device query to: " + serverRegisterCLientUrl);
+    
+    HTTPClient http;
     http.begin(serverRegisterCLientUrl);
 
     http.addHeader("Content-Type", "application/json");

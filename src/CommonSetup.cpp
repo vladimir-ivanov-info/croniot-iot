@@ -17,7 +17,6 @@ void CommonSetup::setup(UserCredentials userCredentials){
   }
 
   //After this step, now we can finally connect to WiFi and to the server:
-
   setWifiConnected(false);
 
   Serial.begin(115200);
