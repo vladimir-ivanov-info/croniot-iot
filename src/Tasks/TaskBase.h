@@ -18,6 +18,7 @@ class TaskBase {
         };
 
         virtual ~TaskBase();
+
         TaskBase(const char* name, uint32_t stackSize, UBaseType_t priority, UBaseType_t core);
         //virtual ~TaskBase() {}
         virtual void handleCallback(const String& topic, byte* payload, unsigned int length) = 0;

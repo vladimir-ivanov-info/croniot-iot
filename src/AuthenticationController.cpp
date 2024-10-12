@@ -57,6 +57,7 @@ void AuthenticationController::registerDevice(){
     UserCredentials credentials = Storage::instance().readUserCredentials();
 
     String accountEmail = credentials.accountEmail;
+    String accountUuid = credentials.accountUuid;
     String accountPassword = credentials.accountPassword;
     String deviceUuid = credentials.deviceUuid;
     String deviceName = credentials.deviceName;
@@ -90,7 +91,7 @@ void AuthenticationController::registerDevice(){
           Result result = parseResult(response);
 
           if(result.success){
-            UserCredentials userCredentials(accountEmail, accountPassword, deviceUuid, result.message, deviceName, deviceDescription);
+            UserCredentials userCredentials(accountEmail, accountUuid, accountPassword, deviceUuid, result.message, deviceName, deviceDescription);
 
             Serial.println("Saving new credentials");
             Storage::instance().saveUserCredentials(userCredentials);

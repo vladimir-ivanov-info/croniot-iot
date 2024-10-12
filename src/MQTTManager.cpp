@@ -18,7 +18,6 @@ void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
         }
         memcpy(payloadCopy, payload, length);
 
-        // Enqueue the message to the appropriate task instance
         instance().topicTaskMap[topicStr]->enqueueMessage(topicStr, payloadCopy, length);
     } else {
         Serial.print("Received message on unknown topic: ");
@@ -36,7 +35,6 @@ void MQTTManager::callbackTaskFunction(void* pvParameters) {
 
     vTaskDelete(NULL); // Delete the task after executing the callback
 }
-
 
 void MQTTManager::init(){
 
@@ -71,7 +69,6 @@ void MQTTManager::registerCallback(String topic, TaskBase* taskInstance) {
     } else {
         Serial.print("Failed to subscribe to topic: ["); Serial.print(topic); Serial.print("]");
     }
-        
 }
 
 void MQTTManager::uninit(){
@@ -93,7 +90,8 @@ void MQTTManager::publish(String topic, String message){
                 uint16_t serverMqttPort = NetworkManager::instance().serverMqttPort;
                 client.setServer(serverAddress.c_str(), serverMqttPort);
 
-                client.connect("ESP32Client");
+                bool connected = client.connect("ESP32Client");
+                Serial.print("Reconnected? : "); Serial.println(connected);
             }
 
             xSemaphoreGive(mutex); // Release the mutex

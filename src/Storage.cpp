@@ -77,9 +77,12 @@ UserCredentials Storage::readUserCredentials() {
     Serial.println("Failed to parse JSON from file");
   } else {
     credentials.accountEmail = doc["accountEmail"].as<String>();
+    credentials.accountUuid = doc["accountUuid"].as<String>();
     credentials.accountPassword = doc["accountPassword"].as<String>();
     credentials.deviceUuid = doc["deviceUuid"].as<String>();
+    credentials.deviceName = doc["deviceName"].as<String>();
     credentials.deviceToken = doc["deviceToken"].as<String>();
+    credentials.deviceDescription = doc["deviceDescription"].as<String>();
   }
 
   file.close();
@@ -102,9 +105,12 @@ void Storage::saveUserCredentials(const UserCredentials& credentials) {
   JsonDocument doc;
 
   doc["accountEmail"] = credentials.accountEmail;
+  doc["accountUuid"] = credentials.accountUuid;
   doc["accountPassword"] = credentials.accountPassword;
   doc["deviceUuid"] = credentials.deviceUuid;
+  doc["deviceName"] = credentials.deviceName;
   doc["deviceToken"] = credentials.deviceToken;
+  doc["deviceDescription"] = credentials.deviceDescription;
 
   if (serializeJson(doc, file) == 0) {
     Serial.println("Failed to write JSON to file");
