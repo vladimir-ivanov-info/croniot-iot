@@ -4,8 +4,9 @@
 #include <ArduinoJson.h>
 
 class MessageLogin {
+    
 public:
-    MessageLogin(String accountEmail, String accountPassword, String deviceUuid, String deviceToken); // Constructor
+    MessageLogin(String accountEmail, String accountPassword, String deviceUuid, String deviceToken);
     String toJson();
 
 private:

@@ -1,7 +1,7 @@
 #include "TaskBase.h"
 
 TaskBase::TaskBase(const char* name, uint32_t stackSize, UBaseType_t priority, UBaseType_t core) {
-    messageQueue = xQueueCreate(10, sizeof(Message)); // Create a queue to hold messages
+    messageQueue = xQueueCreate(10, sizeof(SimpleTaskData)); // Create a queue to hold messages
     if (messageQueue == NULL) {
         Serial.println("Failed to create message queue.");
     } else {
@@ -9,16 +9,6 @@ TaskBase::TaskBase(const char* name, uint32_t stackSize, UBaseType_t priority, U
     }
 
     xTaskCreatePinnedToCore(taskFunction, name, stackSize, this, priority, &taskHandle, core);
-
-    /*xTaskCreatePinnedToCore(
-        taskFunction,       // Function to implement the task
-        "TaskBase",         // Name of the task
-        4096,               // Stack size in words
-        this,               // Task input parameter
-        1,                  // Priority of the task
-        NULL,               // Task handle
-        1                   // Core where the task should run
-    );*/
 }
 
 TaskBase::~TaskBase() {
@@ -27,22 +17,27 @@ TaskBase::~TaskBase() {
     }
 }
 
-void TaskBase::enqueueMessage(const String& topic, byte* payload, unsigned int length) {
+
+void TaskBase::enqueueMessage(SimpleTaskData& taskData){
     if (messageQueue == NULL) {
         Serial.println("Message queue is NULL. Cannot enqueue message.");
-        vPortFree(payload); // Free the payload if enqueue fails
         return;
     }
-    Message message;
-    message.topic = strdup(topic.c_str());  // Allocate memory and copy topic string
-    message.payload = payload;
-    message.length = length;
-    if (xQueueSend(messageQueue, &message, portMAX_DELAY) != pdPASS) {
-        Serial.println("Failed to enqueue message.");
-        vPortFree(payload); // Free the payload if enqueue fails
-        free(message.topic); // Free the topic string
+
+    // Dynamically allocate a copy of TaskData
+    SimpleTaskData* taskDataCopy = new SimpleTaskData(taskData);
+    if (taskDataCopy == NULL) {
+        Serial.println("Failed to allocate memory for TaskData.");
+        return;
+    }
+
+    // Enqueue the pointer to TaskData
+    if (xQueueSend(messageQueue, &taskDataCopy, portMAX_DELAY) != pdPASS) {
+        Serial.println("Failed to enqueue TaskData.");
+        delete taskDataCopy; // Free the allocated memory if enqueue fails
     }
 }
+
 
 void TaskBase::taskFunction(void* pvParameters) {
     TaskBase* taskInstance = static_cast<TaskBase*>(pvParameters);
@@ -52,16 +47,14 @@ void TaskBase::taskFunction(void* pvParameters) {
     }
 }
 
-TaskBase::TaskData TaskBase::processMessage(String message){
+TaskData TaskBase::processMessage(String taskDataJson){
 
     TaskData taskData;
 
     JsonDocument doc;
 
-    // Deserialize the JSON string
-    DeserializationError error = deserializeJson(doc, message);
+    DeserializationError error = deserializeJson(doc, taskDataJson);
 
-    // Check for errors
     if (error) {
         Serial.print(F("deserializeJson() failed: "));
         Serial.println(error.f_str());
@@ -95,3 +88,4 @@ TaskBase::TaskData TaskBase::processMessage(String message){
 
     return taskData;
 }
+

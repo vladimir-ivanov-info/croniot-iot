@@ -2,7 +2,6 @@
 #define MESSAGEREGISTERTASKTYPE_H
 
 #include "ArduinoJson.h"
-#include "Global.h"
 #include <Arduino.h>
 #include "Tasks/TaskType.h"
 

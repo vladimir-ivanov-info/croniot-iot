@@ -2,8 +2,6 @@
 #define MQTTMANAGER_H
 
 #include "WiFiClient.h"
-#include "Global.h"
-#include <PubSubClient.h>
 
 #include "Tasks/TaskBase.h"
 
@@ -14,8 +12,13 @@
 #include <functional>
 
 #include "Storage.h"
+#include "NetworkManager.h"
 
-using TopicCallback = std::function<void(String topic, byte* payload, unsigned int length)>;
+#include "Tasks/TaskController.h"
+
+#include <Ticker.h>
+#include <AsyncMqttClient.h>
+#include <WiFi.h>
 
 class MQTTManager{
 
@@ -23,8 +26,7 @@ class MQTTManager{
 
         volatile bool initialized = false;
 
-        MQTTManager() : client(espClient) {
-           //  this->mutex = xSemaphoreCreateMutex();
+        MQTTManager() {
               mutex = xSemaphoreCreateMutex();
         }
 
@@ -44,41 +46,49 @@ class MQTTManager{
 
         void publish(String topic, String message);
 
-        PubSubClient *getClient(){return &client;}
-
         void registerCallback(String topic, TaskBase* taskInstance);
 
     private:
         SemaphoreHandle_t mutex; 
 
         WiFiClient espClient;
-        PubSubClient client;
+
+        AsyncMqttClient mqttClient;
+        Ticker mqttReconnectTimer;
+        Ticker wifiReconnectTimer;
 
         TaskHandle_t taskHandle = NULL;
 
-        // Static function for the RTOS task
-        static void taskFunction(void *param) {
-            MQTTManager *self = (MQTTManager *)param;
+        std::map<String, TaskBase*> topicTaskMap;
+       
+        void connectToMqtt();
 
-            // Your RTOS task logic goes here
-            for (;;) {
-                self->getClient()->loop();
-                vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay for 1000ms
-            }
+        void onWifiDisconnect(/*const WiFiEventStationModeDisconnected& event*/) {
+            Serial.println("Disconnected from Wi-Fi.");
+            mqttReconnectTimer.detach(); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
+            //wifiReconnectTimer.once(2, connectToWifi);
         }
 
-        static void callbackTaskFunction(void* pvParameters);
+        void onMqttConnect(bool sessionPresent);
 
-        struct CallbackTaskParams {
-            String topic;
-            byte* payload;
-            unsigned int length;
-            std::function<void(String topic, byte* payload, unsigned int length)> callback;
-        };
+        void onMqttDisconnect(AsyncMqttClientDisconnectReason reason);
 
-        void callback(char* topic, byte* payload, unsigned int length);
-        std::map<String, TopicCallback> topicCallbacks;
-        std::map<String, TaskBase*> topicTaskMap;
+        void onMqttSubscribe(uint16_t packetId, uint8_t qos);
+
+        void onMqttUnsubscribe(uint16_t packetId) {
+            Serial.println("Unsubscribe acknowledged.");
+            Serial.print("  packetId: ");
+            Serial.println(packetId);
+        }
+
+        void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
+
+        void onMqttPublish(uint16_t packetId) {
+            Serial.println("Publish acknowledged.");
+            Serial.print("  packetId: ");
+            Serial.println(packetId);
+        }
+
 };
 
 #endif

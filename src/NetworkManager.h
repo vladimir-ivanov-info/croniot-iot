@@ -2,7 +2,6 @@
 #define NETWORKMANAGER_H
 
 #include <WiFi.h>
-#include "Global.h"
 
 #include "Messages/MessageLogin.h"
 #include "Messages/MessageState.h"

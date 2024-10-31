@@ -7,6 +7,7 @@
 #include "NetworkManager.h"
 #include "Tasks/TaskController.h"
 #include "AuthenticationController.h"
+#include "CurrentDateTimeController.h"
 
 class CommonSetup{
 

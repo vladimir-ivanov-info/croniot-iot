@@ -58,7 +58,6 @@ void CommonSetup::setup(UserCredentials userCredentials){
   }
 
   setupWifi();
-
   analogReadResolution(12);
 }
 
@@ -79,7 +78,6 @@ void CommonSetup::wifiEventHandler(WiFiEvent_t event) {
   CommonSetup &instance = CommonSetup::instance();  // Get the singleton instance
 
     WiFiClient  espClient;
-    PubSubClient client(espClient);
    
     switch (event) {
         case SYSTEM_EVENT_STA_GOT_IP:
@@ -87,6 +85,8 @@ void CommonSetup::wifiEventHandler(WiFiEvent_t event) {
               Serial.println("Connected to WiFi");
               Serial.print("IP Address:");
               Serial.println(WiFi.localIP());
+
+              CurrentDateTimeController::instance().run();
               instance.setWifiConnected(true);
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -149,13 +149,11 @@ void CommonSetup::handleMqtt(){
     }
     
     if(MQTTManager::instance().initialized){
-        MQTTManager::instance().getClient()->loop();
         if(!taskControllerInitialized){
           TaskController::instance().init();
           taskControllerInitialized = true;
         }
       }
-
   } else {
     //TODO uninitialize the controllers (AuthenticationController, etc.)
   }

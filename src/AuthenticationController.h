@@ -16,6 +16,7 @@
 #include "Tasks/TaskController.h"
 
 #include <map>
+#include "NetworkManager.h"
 
 class AuthenticationController{
 

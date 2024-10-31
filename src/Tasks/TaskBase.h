@@ -7,42 +7,39 @@
 #include <ArduinoJson.h>
 #include "HttpController.h"
 #include <map>
+#include "TaskData.h"
+
+#include "SimpleTaskData.h"
 
 class TaskBase {
 
     public:
 
-        struct TaskData {
-            int taskUid;
-            std::map<int, String> parametersValues;
-        };
+        virtual int getUid() = 0;
 
         virtual ~TaskBase();
 
         TaskBase(const char* name, uint32_t stackSize, UBaseType_t priority, UBaseType_t core);
-        //virtual ~TaskBase() {}
-        virtual void handleCallback(const String& topic, byte* payload, unsigned int length) = 0;
-        void enqueueMessage(const String& topic, byte* payload, unsigned int length);
+
+        void enqueueMessage(SimpleTaskData& taskData);
 
         virtual void loop() = 0;
-        
         virtual void run() = 0;
 
-
-
     protected:
+
         QueueHandle_t messageQueue;
 
         struct Message {
             char* topic;
-            byte* payload;
+            uint8_t* payload;
             unsigned int length;
         };
 
-        virtual void executeTask(TaskData taskData) = 0;
+        virtual void executeTask(SimpleTaskData& taskData) = 0;
 
 
-        String byteArrayToString(byte* data, unsigned int length) {
+        String byteArrayToString(uint8_t * data, unsigned int length) {
             // Create a temporary char array to hold the data
             char* temp = new char[length + 1]; // +1 for the null terminator
             memcpy(temp, data, length);
@@ -57,7 +54,7 @@ class TaskBase {
             return result;
         };
 
-        TaskData processMessage(String message);
+        TaskData processMessage(String taskDataJson);
 
     private:
         static void taskFunction(void* pvParameters);

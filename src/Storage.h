@@ -2,10 +2,16 @@
 #define STORAGE_H
 
 #include <Arduino.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>
 
 #include "UserCredentials.h"
+#include "Tasks/TaskData.h"
+
+#include "StringUtil.h"
+
+#include <list>
+#include "CurrentDateTimeController.h"
 
 struct ServerData {
     String serverAddress;
@@ -28,8 +34,22 @@ class Storage{
 
         UserCredentials readUserCredentials();
         void saveUserCredentials(const UserCredentials& credentials);
-    private:
 
+        void saveFutureTask(int taskTypeId, TaskData taskData);
+        void getNextFutureTask();
+
+        void prueba();
+
+        std::map<int, String> getTasksForCurrentDateTime();
+
+
+    private:
+        bool createDirectories(const String& path);
+
+        void createDir(String path);
+        void createDirectoryIfNotExists(String directoryPath);
+
+        std::vector<String> getFilesInDirectory(String directoryPath);
 
 };
 

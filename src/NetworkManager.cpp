@@ -5,9 +5,11 @@ NetworkManager::NetworkManager(){
 
     serverData = Storage::instance().getServerData();
 
-    if(serverData.serverAddress.isEmpty()){
+    serverData.serverAddress = "51.77.195.204";
+
+    /*if(serverData.serverAddress.isEmpty()){
         resolveAndFollowRedirects("http://vladimiriot.com");
-    }
+    }*/
 
 }
 

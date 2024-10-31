@@ -1,5 +1,6 @@
 #include "AuthenticationController.h"
 
+
 void AuthenticationController::init(){
 
   bool forceRegisterDevice = false; //for debugging purposes
@@ -152,7 +153,7 @@ Result AuthenticationController::sendHttpPost(String content, String route){
 
 void AuthenticationController::uninit(){
   //MQTTManager::instance().uninit();
- //TODO do this inside of MqttManager's uninit SensorsController::instance().uninit();
+  //TODO do this inside of MqttManager's uninit SensorsController::instance().uninit();
 }
 
 void AuthenticationController::registerSensor(){

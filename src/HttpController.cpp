@@ -1,4 +1,5 @@
 #include "HttpController.h"
+#include "NetworkManager.h"
 
 Result HttpController::sendHttpPost(String content, String route){
     Result result(false, "Default result");
