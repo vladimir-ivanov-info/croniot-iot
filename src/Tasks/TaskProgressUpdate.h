@@ -4,15 +4,17 @@
 #include <Arduino.h>
 #include "ArduinoJson.h"
 
-class TaskProgressUpdate{
+class TaskProgressUpdate {
 
     public:
         
-        TaskProgressUpdate();
+        TaskProgressUpdate(){};
         
         TaskProgressUpdate(const int tasTypekUid, const int taskUid, const String state, const float progress, const String errorMessage) 
         :
         taskTypeUid(tasTypekUid), taskUid(taskUid), state(state), progress(progress), errorMessage(errorMessage) {}
+
+        
 
         int taskTypeUid;
         int taskUid;

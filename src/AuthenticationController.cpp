@@ -24,6 +24,8 @@ void AuthenticationController::init(){
         vTaskDelay(5000 / portTICK_PERIOD_MS);
       }
 
+      //TaskController::instance().init();
+
       if(!loginResult.success && !loginResult.message.equals("-1")){ //TODO only try to register if server returns: "uuid doesn't exist". If it already exists but login failed because wrong credentials, we don't want to register another same IoT in the server
         Serial.println("Login failed, trying to register IoT device...");
         registerDevice();
