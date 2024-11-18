@@ -183,7 +183,6 @@ void TaskController::registerCallback(String deviceUuid, int taskTypeUid, TaskBa
 }
 
 void TaskController::processMessage(int taskTypeUid, String message, unsigned int length){
-     
     Serial.println(message);
     TaskData taskData = processMessage(message);
 

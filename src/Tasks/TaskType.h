@@ -13,6 +13,10 @@ class TaskType{
         TaskType(){}
         TaskType(int uid, String name, String description, list<Parameter> parameters) : uid(uid), name(name), description(description), parameters(parameters){};
         
+        TaskType(int uid, String name, String description, Parameter parameter) : uid(uid), name(name), description(description){
+            parameters.push_back(parameter);
+        };
+        
         JsonObject toJson(JsonObject root);
         
     private:

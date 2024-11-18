@@ -49,7 +49,8 @@ void MQTTManager::publish(String topic, String message){
     try{
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
             if(mqttClient.connected()){
-                uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, true, message.c_str());
+                //uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, true, message.c_str());
+                    uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, false, message.c_str());
             } else {
                 Serial.println("---------->>>Mqtt client not connected, trying to reconnect");
                 //TODO implement a more robust reconnection mechanism and return a result to the objects that call this code so they can react to the disconnection. 
