@@ -1,7 +1,7 @@
 #ifndef MESSAGEREGISTERSENSORTYPE_H
 #define MESSAGEREGISTERSENSORTYPE_H
 
-#include "Tasks/Parameter.h"
+#include "Parameters/Parameter.h"
 #include "Sensors/SensorType.h"
 
 class MessageRegisterSensorType{

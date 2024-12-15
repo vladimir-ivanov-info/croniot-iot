@@ -14,7 +14,6 @@
 class TaskBase {
 
     public:
-
         virtual int getUid() = 0;
 
         virtual ~TaskBase();
@@ -27,7 +26,6 @@ class TaskBase {
         virtual void run() = 0;
 
     protected:
-
         QueueHandle_t messageQueue;
 
         struct Message {

@@ -7,7 +7,6 @@
 class TaskProgressUpdate {
 
     public:
-        
         TaskProgressUpdate(){};
         
         TaskProgressUpdate(const int tasTypekUid, const int taskUid, const String state, const float progress, const String errorMessage) 

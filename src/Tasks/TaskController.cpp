@@ -51,7 +51,6 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
             
             int taskUid = taskProgressUpdate->taskUid;
 
-            //String topic = "/iot_to_server/task_progress_update/watering_system_1"; //TODO fix later, parametrize
             String topic = "/iot_to_server/task_progress_update/" + DEVICE_UUID_EXTERN; //TODO fix later, parametrize
 
             String message = taskProgressUpdate->toJson();

@@ -1,7 +1,7 @@
 #ifndef STATEFULPARAMETERSWITCH_H
 #define STATEFULPARAMETERSWITCH_H
 
-#include "Tasks/Parameter.h"
+#include "Parameter.h"
 
 class StatefulParameterSwitch {
 

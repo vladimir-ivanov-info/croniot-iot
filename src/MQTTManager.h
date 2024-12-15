@@ -89,6 +89,8 @@ class MQTTManager{
             Serial.println(packetId);
         }
 
+        void reconnectMQTT();
+
 };
 
 #endif

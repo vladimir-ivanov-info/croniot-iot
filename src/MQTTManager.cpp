@@ -51,11 +51,13 @@ void MQTTManager::publish(String topic, String message){
             if(mqttClient.connected()){
                 //uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, true, message.c_str());
                     uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, false, message.c_str());
+                        if (packetIdPub2 == 0) {
+                            Serial.println("Failed to publish message. Packet ID is 0.");
+                        }
             } else {
-                Serial.println("---------->>>Mqtt client not connected, trying to reconnect");
-                //TODO implement a more robust reconnection mechanism and return a result to the objects that call this code so they can react to the disconnection. 
-                //Or implement a callback where other objects listen to this.
-                mqttClient.connect();
+                mqttClient.disconnect();
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                reconnectMQTT();
             }
             xSemaphoreGive(mutex); // Release the mutex
         }
@@ -63,6 +65,13 @@ void MQTTManager::publish(String topic, String message){
         Serial.println(">>>>>>>>>Exception in MQTTManager::publish");
         Serial.println("<<<<<<<<<<");
         xSemaphoreGive(mutex); // Release the mutex
+    }
+}
+
+void MQTTManager::reconnectMQTT() {
+    if (!mqttClient.connected()) {
+        Serial.println("Attempting MQTT reconnect...");
+        mqttClient.connect();
     }
 }
 
@@ -81,6 +90,7 @@ void MQTTManager::connectToMqtt() {
 
 void MQTTManager::onMqttConnect(bool sessionPresent) {
     initialized = true;
+    Serial.println("MQTT connected.");
 }
 
 void MQTTManager::onMqttSubscribe(uint16_t packetId, uint8_t qos) {

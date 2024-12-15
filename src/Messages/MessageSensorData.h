@@ -6,7 +6,6 @@
 class MessageSensorData{
 
     public:
-
         MessageSensorData(int id, String value) : id(id), value(value){}
         String toString();
 

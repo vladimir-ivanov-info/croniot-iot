@@ -29,7 +29,7 @@ void CurrentDateTimeController::taskFunction(void* pvParameters) {
                 taskInstance->dateTime->hour = (taskInstance->dateTime->hour + 1)%24;
             }
         }
-       // Serial.print("Updated time: "); Serial.print(taskInstance->dateTime->hour); Serial.print(":"); Serial.print(taskInstance->dateTime->minute); Serial.print(":");  Serial.print(taskInstance->dateTime->second); Serial.println();
+        //Serial.print("Updated time: "); Serial.print(taskInstance->dateTime->hour); Serial.print(":"); Serial.print(taskInstance->dateTime->minute); Serial.print(":");  Serial.print(taskInstance->dateTime->second); Serial.println();
     }
 }
 

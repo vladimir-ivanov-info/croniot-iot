@@ -2,7 +2,7 @@
 #define TASKTYPE_H
 
 #include "Arduino.h"
-#include "Parameter.h"
+#include "Parameters/Parameter.h"
 #include <list>
 
 using namespace std;

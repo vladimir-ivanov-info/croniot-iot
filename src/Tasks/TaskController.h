@@ -39,6 +39,8 @@ class TaskController{
             }
         }
 
+        //void registerTask(TaskType taskType, TaskBase *task);
+
         void addTaskType(TaskType taskType) { taskTypes.push_back(taskType); }
         list<TaskType> getAllTaskTypes(){ return taskTypes; }
 

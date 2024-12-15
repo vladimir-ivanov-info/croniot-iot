@@ -9,7 +9,9 @@
 #include "AuthenticationController.h"
 #include "CurrentDateTimeController.h"
 
-class CommonSetup{
+#include "esp_task_wdt.h"
+
+class CommonSetup {
 
     public:
         static CommonSetup & instance() {

@@ -124,6 +124,7 @@ void CommonSetup::mqttTask(void *pvParameters) {
 }
 
 void CommonSetup::loop(){
+
   // Create a FreeRTOS task for the MQTT loop with higher priority
   if(!taskCreated){
     taskCreated = true;
@@ -137,8 +138,9 @@ void CommonSetup::loop(){
       &mqttTaskHandle,  // Task handle
       1                 // Core to run the task on (1 = core 1 on dual-core ESP32)
     );
-
   }
+  esp_task_wdt_reset();
+  vTaskDelay(5000 / portTICK_PERIOD_MS);
 }
 
 void CommonSetup::handleMqtt(){

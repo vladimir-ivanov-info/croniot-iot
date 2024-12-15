@@ -6,6 +6,9 @@
 #include <map>
 
 #define PARAMETERS_NUMBER "number"
+#define PARAMETERS_STRING "string"
+#define PARAMETERS_TIME "time"
+
 #define PARAMETERS_NUMBER_MIN_VALUE "minValue"
 #define PARAMETERS_NUMBER_MAX_VALUE "maxValue"
 

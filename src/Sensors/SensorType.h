@@ -2,7 +2,7 @@
 #define SENSORTYPE_H
 
 #include <list>
-#include "Tasks/Parameter.h"
+#include "Parameters/Parameter.h"
 
 using namespace std;
 
