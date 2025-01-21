@@ -49,7 +49,6 @@ void MQTTManager::publish(String topic, String message){
     try{
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
             if(mqttClient.connected()){
-                //uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, true, message.c_str());
                     uint16_t packetIdPub2 = mqttClient.publish(topic.c_str(), 2, false, message.c_str());
                         if (packetIdPub2 == 0) {
                             Serial.println("Failed to publish message. Packet ID is 0.");

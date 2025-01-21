@@ -8,7 +8,7 @@
 #include "Messages/MessageRegisterDevice.h"
 #include "Messages/MessageRegisterSensorType.h"
 #include "Messages/MessageRegisterTaskType.h"
-#include "Messages/MessageLogin.h"
+#include "Messages/MessageLoginRequest.h"
 
 #include "MQTTManager.h"
 
@@ -54,6 +54,8 @@ class AuthenticationController{
 
 
         void uninit();
+
+        const bool DEBUG_REGISTER_TASKS = false;
 
 };
 

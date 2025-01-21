@@ -7,6 +7,11 @@ void AuthenticationController::init(){
 
     UserCredentials credentials = Storage::instance().readUserCredentials();
 
+    Serial.println("---------------------------------------------");
+      Serial.println(credentials.accountEmail);;
+      Serial.println(credentials.accountPassword);;
+    Serial.println("---------------------------------------------");
+
    Serial.println("Credentials: [accountEmail=" + credentials.accountEmail + "] " + credentials.accountPassword + " " + credentials.deviceUuid + " " + credentials.deviceToken);
 
   if(!forceRegisterDevice 
@@ -44,9 +49,15 @@ void AuthenticationController::init(){
 }
 
 Result AuthenticationController::login(UserCredentials credentials){
-    MessageLogin messageLogin(credentials.accountEmail, credentials.accountPassword, credentials.deviceUuid, credentials.deviceToken);
+    MessageLoginRequest messageLogin(credentials.accountEmail, credentials.accountPassword, credentials.deviceUuid, credentials.deviceToken);
 
     String jsonPayload = messageLogin.toJson();
+
+    Serial.println("---------------------------------------------");
+      Serial.println(credentials.accountEmail);;
+      Serial.println(credentials.accountPassword);
+      Serial.println(jsonPayload);
+    Serial.println("---------------------------------------------");
 
     Result result = sendHttpPost(jsonPayload, ROUTE_IOT_LOGIN);
 
@@ -194,17 +205,22 @@ void AuthenticationController::registerTasks(){
   for(auto taskType : taskTypes){
     MessageRegisterTaskType messageRegisteTaskType1(credentials.deviceUuid, credentials.deviceToken, taskType);
 
-    String json4 = "";
+    String json = "";
     JsonDocument doc4;
     messageRegisteTaskType1.toJson(doc4.to<JsonObject>());
-    serializeJsonPretty(doc4, json4);
+    serializeJsonPretty(doc4, json);
 
-    Serial.println("Registering task:");
-    Serial.println(json4);
+    if(DEBUG_REGISTER_TASKS){
+        Serial.println("Registering task:");
+        Serial.println(json);
+    }
 
-    Result result4 = sendHttpPost(json4, ROUTE_REGISTER_TASK_TYPE);
-    Serial.println("Response:");
-    Serial.println(result4.toString());
+    Result result4 = sendHttpPost(json, ROUTE_REGISTER_TASK_TYPE);
+
+    if(DEBUG_REGISTER_TASKS){
+      Serial.println("Response:");
+      Serial.println(result4.toString());
+    }
   }
 }
 

@@ -25,6 +25,8 @@ class CommonSetup {
         void setup(UserCredentials userCredentials);
         void loop();
 
+        UserCredentials userCredentials;
+
 
     private:
         int pinWifiConnected = 13; //for easily and visually knowing the current WiFi connection state. I used an LED: light = error, no light = connected
@@ -43,7 +45,7 @@ class CommonSetup {
         static void mqttTask(void *pvParameters);
         TaskHandle_t mqttTaskHandle;
 
-        UserCredentials userCredentials;
+        
 
 };
 

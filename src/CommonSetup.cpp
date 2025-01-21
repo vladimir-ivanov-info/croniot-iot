@@ -64,7 +64,7 @@ void CommonSetup::setup(UserCredentials userCredentials){
 void CommonSetup::setupWifi(){
   Serial.println();
   WiFi.mode(WIFI_STA);
-    //    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
+  //    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
 
   WiFi.onEvent(CommonSetup::wifiEventHandler);
 

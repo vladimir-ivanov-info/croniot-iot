@@ -3,7 +3,7 @@
 
 #include <WiFi.h>
 
-#include "Messages/MessageLogin.h"
+#include "Messages/MessageLoginRequest.h"
 #include "Messages/MessageState.h"
 
 #include "Storage.h"
