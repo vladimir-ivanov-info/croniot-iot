@@ -2,6 +2,7 @@
 #define SENSOR_H
 
 #include "Messages/MessageSensorData.h"
+#include "network/mqtt/MqttProvider.h"
 
 //TODO rename to SensorProcess or SensorTask
 class Sensor {
@@ -12,10 +13,11 @@ class Sensor {
 
     protected:
 
+        //TODO delegate this method to another class. SensorController, for example
         void sendSensorData(String deviceUuid, int sensorUid, String sensorValue){
             MessageSensorData messageSensorData(sensorUid, sensorValue);
             String topicSensorData = "/" + deviceUuid + "/sensor_data";
-            MQTTManager::instance().publish(topicSensorData.c_str(), messageSensorData.toString().c_str());
+            MqttProvider::get()->publish(topicSensorData.c_str(), messageSensorData.toString().c_str());
         };
 
 };

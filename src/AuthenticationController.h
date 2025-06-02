@@ -10,13 +10,15 @@
 #include "Messages/MessageRegisterTaskType.h"
 #include "Messages/MessageLoginRequest.h"
 
-#include "MQTTManager.h"
+#include "network/mqtt/MqttProvider.h"
 
 #include "Sensors/SensorsController.h"
 #include "Tasks/TaskController.h"
 
 #include <map>
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
+
+#include "network/http/HttpProvider.h"
 
 class AuthenticationController{
 
@@ -29,9 +31,9 @@ class AuthenticationController{
             return *_instance;
         }
 
-        void init(); //TODO pass user credentials, sensors and tasks
+        bool init(); //TODO pass user credentials, sensors and tasks
 
-        void registerDevice();
+        Result registerDevice();
         void registerSensor();
 
         void registerSensorTypes();

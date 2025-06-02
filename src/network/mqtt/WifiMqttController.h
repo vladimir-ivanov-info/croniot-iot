@@ -1,5 +1,5 @@
-#ifndef MQTTMANAGER_H
-#define MQTTMANAGER_H
+#ifndef WIFIMQTTCONTROLLER_H
+#define WIFIMQTTCONTROLLER_H
 
 #include "WiFiClient.h"
 
@@ -7,12 +7,12 @@
 
 #include <ArduinoJson.h>
 
-#include "HttpController.h"
+#include "network/http/HttpController.h"
 
 #include <functional>
 
 #include "Storage.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 
 #include "Tasks/TaskController.h"
 
@@ -20,20 +20,20 @@
 #include <AsyncMqttClient.h>
 #include <WiFi.h>
 
-class MQTTManager{
+class WifiMqttController : public MqttController {
 
     public:
 
-        volatile bool initialized = false;
+        //volatile bool initialized = false;
 
-        MQTTManager() {
+        WifiMqttController() {
               mutex = xSemaphoreCreateMutex();
         }
 
-        static MQTTManager & instance() {
-            static MQTTManager * _instance = 0;
+        static WifiMqttController & instance() {
+            static WifiMqttController * _instance = 0;
             if ( _instance == 0 ) {
-                _instance = new MQTTManager();
+                _instance = new WifiMqttController();
             }
             return *_instance;
         }
@@ -41,12 +41,11 @@ class MQTTManager{
         String topic_outcoming = "";
         String topic_incoming = "";
 
-        void init();
+        bool init() override;
         void uninit();
 
-        void publish(String topic, String message);
-
-        void registerCallback(String topic, TaskBase* taskInstance);
+        Result publish(String topic, String message) override;
+        void registerCallback(String topic, TaskBase* taskInstance) override;
 
     private:
         SemaphoreHandle_t mutex; 

@@ -4,7 +4,8 @@
 #include <WiFiUdp.h>
 
 #include "DateTime.h"
-#include "HttpController.h"
+#include "network/http/HttpController.h"
+#include "network/http/HttpProvider.h"
 
 #include "StringUtil.h"
 

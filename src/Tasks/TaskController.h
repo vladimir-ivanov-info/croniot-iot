@@ -10,8 +10,7 @@
 #include "CurrentDateTimeController.h"
 
 #include "Storage.h"
-
-#include "MQTTManager.h"
+#include "network/mqtt/MqttProvider.h"
 
 #include "SimpleTaskData.h"
 #include "TaskProgressUpdate.h"
@@ -38,8 +37,6 @@ class TaskController{
                 Serial.println("Message queue created successfully.");
             }
         }
-
-        //void registerTask(TaskType taskType, TaskBase *task);
 
         void addTaskType(TaskType taskType) { taskTypes.push_back(taskType); }
         list<TaskType> getAllTaskTypes(){ return taskTypes; }

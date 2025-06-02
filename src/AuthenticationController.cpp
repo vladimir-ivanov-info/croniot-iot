@@ -1,7 +1,9 @@
 #include "AuthenticationController.h"
 
 
-void AuthenticationController::init(){
+bool AuthenticationController::init(){
+
+  bool authenticationResult = false;
 
   bool forceRegisterDevice = false; //for debugging purposes
 
@@ -27,25 +29,35 @@ void AuthenticationController::init(){
       while(!loginResult.success && loginResult.message.equals("-1")){
         loginResult = login(credentials);
         vTaskDelay(5000 / portTICK_PERIOD_MS);
-      }
 
-      //TaskController::instance().init();
+      }
+      authenticationResult = true;
 
       if(!loginResult.success && !loginResult.message.equals("-1")){ //TODO only try to register if server returns: "uuid doesn't exist". If it already exists but login failed because wrong credentials, we don't want to register another same IoT in the server
         Serial.println("Login failed, trying to register IoT device...");
-        registerDevice();
-        registerSensorTypes();
-        registerTasks();
-      }
+        Result resultRegisterDevice = registerDevice();
 
+        if(resultRegisterDevice.success){
+          registerSensorTypes();
+          registerTasks();
+          authenticationResult = true;
+        } else {
+          Serial.println("Register device no success: " + resultRegisterDevice.message);
+        }
+      }
   } else {
     Serial.println("Credentials not found.");
-    registerDevice();
-    registerSensorTypes();
-    registerTasks();
+    Result resultRegisterDevice = registerDevice();
+    if(resultRegisterDevice.success){
+      registerSensorTypes();
+      registerTasks();
+      authenticationResult = true;
+    } else {
+      Serial.println("Register device no success: " + resultRegisterDevice.message);
+    }
   }
-  MQTTManager::instance().init();
-  SensorsController::instance().init();
+
+  return authenticationResult;
 }
 
 Result AuthenticationController::login(UserCredentials credentials){
@@ -59,7 +71,7 @@ Result AuthenticationController::login(UserCredentials credentials){
       Serial.println(jsonPayload);
     Serial.println("---------------------------------------------");
 
-    Result result = sendHttpPost(jsonPayload, ROUTE_IOT_LOGIN);
+    Result result = HttpProvider::get()->sendHttpPost(jsonPayload, ROUTE_IOT_LOGIN);
 
     Serial.println("Result login:");
     Serial.println(result.toString());
@@ -67,7 +79,7 @@ Result AuthenticationController::login(UserCredentials credentials){
     return result;
 }
 
-void AuthenticationController::registerDevice(){
+Result AuthenticationController::registerDevice(){
     UserCredentials credentials = Storage::instance().readUserCredentials();
 
     String accountEmail = credentials.accountEmail;
@@ -86,80 +98,21 @@ void AuthenticationController::registerDevice(){
 
     String serverRegisterCLientUrl = "http://" + serverAddress +  + ":" + serverPort + ROUTE_REGISTER_CLIENT;
     Serial.println("Register device query to: " + serverRegisterCLientUrl);
-    
-    HTTPClient http;
-    http.begin(serverRegisterCLientUrl);
 
-    http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST(jsonPayload);
-    if (httpResponseCode > 0) {
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
+    Result result = HttpProvider::get()->sendHttpPost(jsonPayload, ROUTE_REGISTER_CLIENT);
 
-        String response = http.getString();
-        http.end();
-        Serial.println("Register client response:");
-        Serial.println(response);
+    if(result.success){
+      UserCredentials userCredentials(accountEmail, accountUuid, accountPassword, deviceUuid, result.message, deviceName, deviceDescription);
 
-        if(!response.isEmpty()){
-          Result result = parseResult(response);
+      Serial.println("Saving new credentials");
+      Storage::instance().saveUserCredentials(userCredentials);
+      Serial.println("Credentials saved");
 
-          if(result.success){
-            UserCredentials userCredentials(accountEmail, accountUuid, accountPassword, deviceUuid, result.message, deviceName, deviceDescription);
-
-            Serial.println("Saving new credentials");
-            Storage::instance().saveUserCredentials(userCredentials);
-            Serial.println("Credentials saved");
-
-            vTaskDelay(3000 / portTICK_PERIOD_MS); //Needed delay because after this saving we read the credentials again and it seems like the saving is asynchronous, while our code here is synchronous.
-          } else {
-            
-          }
-        } else {
-          Serial.println("Register response body is empty");
-        }
-        //TODO parse token
+      vTaskDelay(3000 / portTICK_PERIOD_MS); //Needed delay because after this saving we read the credentials again and it seems like the saving is asynchronous, while our code here is synchronous.
     } else {
-        Serial.print("HTTP Request failed. Is the server online? Error code: ");
-        Serial.println(httpResponseCode);
+      Serial.print("HTTP Request failed. Is the server online? Error code: ");
+      Serial.println(result.message);
     }
-}
-
-Result AuthenticationController::sendHttpPost(String content, String route){
-
-  Result result(false, "Default result");
-
-    HTTPClient http;
-    http.setConnectTimeout(10000); //10 seconds to connect
-    http.setTimeout(10000);
-
-    String serverAddress = NetworkManager::instance().serverAddress;
-    String serverPort = String(NetworkManager::instance().serverPort);
-
-    String serverRegisterCLientUrl = "http://" + serverAddress + ":" + serverPort + route;
-    Serial.println(serverRegisterCLientUrl);
-    http.begin(serverRegisterCLientUrl);
-
-    http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST(content);
-    if (httpResponseCode > 0) {
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
-
-        String response = http.getString();
-        if(!response.isEmpty()){
-          result = parseResult(response);
-        } else {
-          Serial.println("HTTP response body is empty for endpoint: " + route);
-        }
-    } else {
-        //uninit();
-        Serial.print("HTTP Request failed. Error code: "); Serial.println(httpResponseCode);
-        result = Result(false, String(httpResponseCode));
-        //init();
-    }
-
-    http.end();
 
     return result;
 }
@@ -190,7 +143,8 @@ void AuthenticationController::registerSensorTypes(){
     messageRegisterSensor2.toJson(doc2.to<JsonObject>());
     serializeJsonPretty(doc2, json2);
 
-    Result result2 = sendHttpPost(json2, ROUTE_REGISTER_SENSOR_TYPE);
+    Result result2 = HttpProvider::get()->sendHttpPost(json2, ROUTE_REGISTER_SENSOR_TYPE);
+
     Serial.println("result2 Response:");
     Serial.println(result2.toString());
   }
@@ -215,7 +169,7 @@ void AuthenticationController::registerTasks(){
         Serial.println(json);
     }
 
-    Result result4 = sendHttpPost(json, ROUTE_REGISTER_TASK_TYPE);
+    Result result4 = HttpProvider::get()->sendHttpPost(json, ROUTE_REGISTER_TASK_TYPE);
 
     if(DEBUG_REGISTER_TASKS){
       Serial.println("Response:");

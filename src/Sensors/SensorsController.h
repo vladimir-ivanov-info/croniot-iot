@@ -4,11 +4,10 @@
 #include <stdio.h>
 #include <map>
 #include "SensorType.h"
-#include "MQTTManager.h"
 #include "Messages/MessageSensorData.h"
 #include "Sensor.h"
 
-class SensorsController{
+class SensorsController {
 
     public:
         static SensorsController & instance() {

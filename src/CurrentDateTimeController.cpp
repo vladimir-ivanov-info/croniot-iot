@@ -47,9 +47,9 @@ bool CurrentDateTimeController::isCurrentTime(String time){
 }
 
 void CurrentDateTimeController::synchronizeWithServer(){ //TODO simplify in 1 query later
-    Result resultHour = HttpController::instance().sendHttpPost("", "/hour");
-    Result resultMinute = HttpController::instance().sendHttpPost("", "/minute");
-    Result resultSecond = HttpController::instance().sendHttpPost("", "/second");
+    Result resultHour = HttpProvider::get()->sendHttpPost("", "/hour");
+    Result resultMinute = HttpProvider::get()->sendHttpPost("", "/minute");
+    Result resultSecond = HttpProvider::get()->sendHttpPost("", "/second");
     Serial.print("Datetime query result: "); Serial.print(resultHour.message); Serial.print(":"); Serial.println(resultMinute.message);
 
     int hour = resultHour.message.toInt();

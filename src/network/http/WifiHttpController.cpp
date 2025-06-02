@@ -1,7 +1,7 @@
-#include "HttpController.h"
-#include "NetworkManager.h"
+#include "WifiHttpController.h"
+#include "../NetworkManager.h"
 
-Result HttpController::sendHttpPost(String content, String route){
+Result WifiHttpController::sendHttpPost(String content, String route){
     Result result(false, "Default result");
 
     HTTPClient http;
@@ -36,19 +36,3 @@ Result HttpController::sendHttpPost(String content, String route){
     return result;
 }
 
-Result HttpController::parseResult(const String& jsonString) {
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, jsonString);
-
-  if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return Result(false, "Local deserializeJson() failed, JSON:\n" + jsonString);
-  }
-
-  bool success = doc["success"];
-  String message = doc["message"];
-
-  return Result(success, message);
-}

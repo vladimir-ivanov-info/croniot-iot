@@ -56,7 +56,7 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
             String message = taskProgressUpdate->toJson();
             Serial.println("Publishing to " + topic);
             Serial.println(message);
-            MQTTManager::instance().publish(topic, message);
+            MqttProvider::get()->publish(topic, message);
         }
     }
 }
@@ -178,7 +178,9 @@ TaskData TaskController::processMessage(String message){
 void TaskController::registerCallback(String deviceUuid, int taskTypeUid, TaskBase* taskInstance){
     tasksMap[taskTypeUid] = taskInstance;
 
-    MQTTManager::instance().registerCallback("/server/" + String(deviceUuid) + "/task_type/" + String(taskTypeUid), taskInstance);
+    String listenTopic = "/server/" + String(deviceUuid) + "/task_type/" + String(taskTypeUid);
+    Serial.println("Mqtt listening topic: " + listenTopic);
+    MqttProvider::get()->registerCallback(listenTopic, taskInstance);
 }
 
 void TaskController::processMessage(int taskTypeUid, String message, unsigned int length){

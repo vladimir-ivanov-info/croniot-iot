@@ -1,6 +1,6 @@
-#include "MQTTManager.h"
+#include "WifiMqttController.h"
 
-void MQTTManager::init(){
+bool WifiMqttController::init(){
     mqttClient.onConnect([this](bool sessionPresent) {
         this->onMqttConnect(sessionPresent);
     });
@@ -28,9 +28,11 @@ void MQTTManager::init(){
 
     Serial.println("Connecting to MQTT...");
     mqttClient.connect();
+
+    return true;
 }
 
-void MQTTManager::registerCallback(String topic, TaskBase* taskInstance) {
+void WifiMqttController::registerCallback(String topic, TaskBase* taskInstance) {
     topicTaskMap[topic] = taskInstance;
     
     uint16_t pcketId = mqttClient.subscribe(topic.c_str(), 2);
@@ -41,11 +43,11 @@ void MQTTManager::registerCallback(String topic, TaskBase* taskInstance) {
     }
 }
 
-void MQTTManager::uninit(){
+void WifiMqttController::uninit(){
     //client.disconnect();
 }
 
-void MQTTManager::publish(String topic, String message){
+Result WifiMqttController::publish(String topic, String message){
     try{
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
             if(mqttClient.connected()){
@@ -65,16 +67,18 @@ void MQTTManager::publish(String topic, String message){
         Serial.println("<<<<<<<<<<");
         xSemaphoreGive(mutex); // Release the mutex
     }
+
+    return Result(true, "wqeqweqwe");
 }
 
-void MQTTManager::reconnectMQTT() {
+void WifiMqttController::reconnectMQTT() {
     if (!mqttClient.connected()) {
         Serial.println("Attempting MQTT reconnect...");
         mqttClient.connect();
     }
 }
 
-void MQTTManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+void WifiMqttController::onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     Serial.println("Disconnected from WiFi and MQTT.");
 
     /*if (WiFi.isConnected()) {
@@ -82,17 +86,17 @@ void MQTTManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     }*/
 }
 
-void MQTTManager::connectToMqtt() {
+void WifiMqttController::connectToMqtt() {
     Serial.println("Connecting to MQTT...");
     mqttClient.connect();
 }
 
-void MQTTManager::onMqttConnect(bool sessionPresent) {
+void WifiMqttController::onMqttConnect(bool sessionPresent) {
     initialized = true;
     Serial.println("MQTT connected.");
 }
 
-void MQTTManager::onMqttSubscribe(uint16_t packetId, uint8_t qos) {
+void WifiMqttController::onMqttSubscribe(uint16_t packetId, uint8_t qos) {
     /*Serial.println("Subscribe acknowledged.");
     Serial.print("  packetId: ");
     Serial.println(packetId);
@@ -100,7 +104,7 @@ void MQTTManager::onMqttSubscribe(uint16_t packetId, uint8_t qos) {
     Serial.println(qos);*/
 }
 
-void MQTTManager::onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+void WifiMqttController::onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
     String topicStr = String(topic);
     Serial.print("MQTT message arrived on topic: "); Serial.println(topicStr);
 

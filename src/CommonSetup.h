@@ -3,13 +3,28 @@
 
 #include <WiFi.h>
 
-#include "MQTTManager.h"
-#include "NetworkManager.h"
+#include "network/mqtt/MqttProvider.h"
+#include "network/NetworkManager.h"
 #include "Tasks/TaskController.h"
 #include "AuthenticationController.h"
 #include "CurrentDateTimeController.h"
 
+#include "network/http/HttpProvider.h"
+#include "network/http/HttpController.h"
+
+#include "network/mqtt/MqttProvider.h"
+
+#include <memory>
+
+
 #include "esp_task_wdt.h"
+
+#include "network/connection_provider/NetworkConnectionProvider.h"
+#include "network/connection_provider/NetworkConnectionController.h"
+
+#include "AuthenticationController.h"
+
+#include "network/connection_provider/NetworkConnectionControllerBase.h"
 
 class CommonSetup {
 
@@ -22,30 +37,23 @@ class CommonSetup {
             return *_instance;
         }
 
-        void setup(UserCredentials userCredentials);
-        void loop();
+        bool setup(UserCredentials userCredentials, NetworkConnectionControllerBase* networkConnectionController) {
+            setupImpl(userCredentials, networkConnectionController);
+            return true; //TODO
+        }
 
         UserCredentials userCredentials;
 
 
     private:
-        int pinWifiConnected = 13; //for easily and visually knowing the current WiFi connection state. I used an LED: light = error, no light = connected
-        volatile bool wifiConnected = false;
-        volatile bool authenticationControllerInitialized = false;
-        bool taskControllerInitialized = false;
-        
-        static void setupWifi();
-        static void wifiEventHandler(WiFiEvent_t event);
-        void setWifiConnected(bool connected);
+        void authenticateWithServer(NetworkConnectionControllerBase* networkConnectionController);
 
         void handleMqtt();
 
-        bool taskCreated = false;
-
-        static void mqttTask(void *pvParameters);
+        static void authenticateWithServerTask(void *pvParameters);
         TaskHandle_t mqttTaskHandle;
 
-        
+        bool setupImpl(UserCredentials userCredentials, NetworkConnectionControllerBase* networkConnectionController);
 
 };
 

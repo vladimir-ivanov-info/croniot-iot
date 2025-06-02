@@ -5,10 +5,11 @@
 
 #include "Messages/MessageLoginRequest.h"
 #include "Messages/MessageState.h"
+#include "../Storage.h"
 
-#include "Storage.h"
 #include <HTTPClient.h>
 
+//TODO separate this class or make this class use the cooncrete implementaton of NetworkConnectionProvider
 class NetworkManager{
 
     public:

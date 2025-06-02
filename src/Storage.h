@@ -13,6 +13,8 @@
 #include <list>
 #include "CurrentDateTimeController.h"
 
+#include <vector>
+
 struct ServerData {
     String serverAddress;
     //uint16_t serverPort;
