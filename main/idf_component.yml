@@ -1,0 +1,3 @@
+dependencies:
+  joltwallet/littlefs: '>=1.0.0'
+  espp/ads1x15: ^1.0
