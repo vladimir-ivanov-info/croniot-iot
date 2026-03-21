@@ -1,4 +1,3 @@
-// ESP-IDF version of TaskController (migrated)
 #ifndef TASKCONTROLLER_H
 #define TASKCONTROLLER_H
 

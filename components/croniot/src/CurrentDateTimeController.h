@@ -1,8 +1,6 @@
 #ifndef CURRENTDATETIMECONTROLLER_H
 #define CURRENTDATETIMECONTROLLER_H
 
-
-
 #include "DateTime.h"
 #include "network/http/HttpController.h"
 #include "network/http/HttpProvider.h"
@@ -11,7 +9,6 @@
 #include "freertos/task.h"
 
 #include "StringUtil.h"
-
 
 
 class CurrentDateTimeController {
@@ -29,7 +26,6 @@ class CurrentDateTimeController {
 
         DateTime *getDateTime(){ return dateTime; }
 
-        //bool isCurrentTime(String time);
         bool isCurrentTime(const std::string& time);
 
 

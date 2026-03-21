@@ -1,11 +1,6 @@
 #pragma once
 
-
-//#ifndef NETWORKCONNECTIONCONTROLLER_H
-//#define NETWORKCONNECTIONCONTROLLER_H
-
 #include "NetworkConnectionControllerBase.h"
-
 
 template <typename T>
 class NetworkConnectionController : public NetworkConnectionControllerBase {

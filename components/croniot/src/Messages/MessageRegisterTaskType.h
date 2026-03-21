@@ -9,7 +9,6 @@ class MessageRegisterTaskType {
 public:
     MessageRegisterTaskType(const std::string& deviceUuid, const std::string& deviceToken, const TaskType& taskType);
 
-    //cJSON* toJson() const;
     cJSON* toJson(cJSON* root) const;
     
     std::string toJsonString() const;

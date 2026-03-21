@@ -1,23 +1,3 @@
-/*#ifndef MESSAGESENSORDATA_H
-#define MESSAGESENSORDATA_H
-
-#include <cJSON.h>
-
-class MessageSensorData{
-
-    public:
-        MessageSensorData(int sensorTypeId, String value) : sensorTypeId(sensorTypeId), value(value){}
-        String toString();
-
-    private:
-        //String messageName = "sensor_data";
-        int sensorTypeId;
-        String value;
-
-};
-
-#endif*/
-
 #ifndef MESSAGESENSORDATA_H
 #define MESSAGESENSORDATA_H
 

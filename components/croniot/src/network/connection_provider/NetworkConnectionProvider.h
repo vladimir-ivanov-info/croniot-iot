@@ -1,8 +1,5 @@
 #pragma once
 
-//#ifndef NETWORKCONNECTIONPROVIDER_H
-//#define NETWORKCONNECTIONPROVIDER_H
-
 #include <memory>
 #include "esp_log.h"
 #include <functional>
@@ -17,15 +14,6 @@ class NetworkConnectionProvider {
 
         using WifiConnectedCallback = std::function<void(const std::string& result)>;
 
-
-       /* static bool init(NetworkConnectionControllerBase* controller, WifiConnectedCallback wifiConnectedCallback) {
-            instance_ = controller;
-                ESP_LOGI("NETWORK_PROVIDER", "NETWORK_PROVIDER Initialized!");
-
-            return instance_->init(wifiConnectedCallback);
-        }*/
-
-
         static bool init(NetworkConnectionControllerBase* controller, WifiConnectedCallback wifiConnectedCallback);
     
         static NetworkConnectionControllerBase* get() {
@@ -36,6 +24,3 @@ class NetworkConnectionProvider {
     private:
         static NetworkConnectionControllerBase* instance_;
 };
-
-//#endif
-

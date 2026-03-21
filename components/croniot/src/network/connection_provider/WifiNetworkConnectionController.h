@@ -41,10 +41,7 @@ public:
 
     WifiNetworkConnectionController() = default; //TODO poner private
 
-
-
 private:
-    
 
     bool taskCreated = false;
     gpio_num_t ledPin = GPIO_NUM_13;

@@ -1,8 +1,6 @@
 #ifndef HTTPPROVIDER_H
 #define HTTPPROVIDER_H
 
-//#include <memory>
-
 #include "HttpController.h"
 
 class HttpProvider {

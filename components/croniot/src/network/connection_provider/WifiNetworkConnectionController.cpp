@@ -3,94 +3,6 @@
 
 static const char* TAG = "WifiNetworkConnectionController";
 
-
-// Inicialización singleton
-/*bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnectedCallback wifiConnectedCallback) {
-
-    this->wifiConnectedCallback = wifiConnectedCallback;
-
-    wifiConnected = false;
-
-    // Inicializa NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-    }
-
-    // Inicializa TCP/IP y loop de eventos
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    // Configura Wi-Fi
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    // ✅ AÑADIR - Configuración optimizada para señal débil
-    wifi_country_t country = {
-        .cc = "ES",
-        .schan = 1,
-        .nchan = 13,
-        .max_tx_power = 20,
-        .policy = WIFI_COUNTRY_POLICY_AUTO
-    };
-    esp_wifi_set_country(&country);
-
-
-
-    
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        WIFI_EVENT, ESP_EVENT_ANY_ID,
-        &WifiNetworkConnectionController::wifiEventHandler,
-        this, nullptr));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP,
-        &WifiNetworkConnectionController::wifiEventHandler,
-        this, nullptr));
-
-    // Arranca Wi-Fi
-    wifi_config_t wifi_cfg = {};
-    auto& nm = NetworkManager::instance();
-    strncpy((char*)wifi_cfg.sta.ssid, nm.wifiSsid.c_str(), sizeof(wifi_cfg.sta.ssid));
-    strncpy((char*)wifi_cfg.sta.password, nm.wifiPassword.c_str(), sizeof(wifi_cfg.sta.password));
-
-
-
-
-
-    // Configuración específica para señal débil
-    wifi_cfg.sta.channel = 0;                           // Auto-scan
-    wifi_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;   // Escanear todos los canales
-    wifi_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL; // Conectar por señal más fuerte
-    wifi_cfg.sta.threshold.rssi = -127;                 // Umbral muy bajo para señal débil
-    wifi_cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;   // Cualquier modo de auth
-    
-
-
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-
-    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));        // Desactivar power saving
-    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(84));        // Máxima potencia (21 dBm)
-
-    // Protocolo optimizado para señal débil
-    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-    esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);  // 20MHz para mejor alcance
-
-
-    ESP_LOGI(TAG_WIFI, "Wi-Fi started, connecting to '%s'", nm.wifiSsid.c_str());
-    ESP_ERROR_CHECK(esp_wifi_connect());  // ← Añade esta línea aquí
-
-    //vTaskDelay(pdMS_TO_TICKS(5000));
-    //return true;
-    return true;
-}*/
-
 bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnectedCallback wifiConnectedCallback) {
     this->wifiConnectedCallback = wifiConnectedCallback;
     wifiConnected = false;
@@ -212,8 +124,6 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
     return true;
 }
 
-
-
 void WifiNetworkConnectionController::wifiEventHandler(void* arg,
     esp_event_base_t base, int32_t id, void* data)
 {
@@ -236,39 +146,7 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
         // Crea la tarea MQTT sólo una vez
         if (!inst.taskCreated) {
             inst.taskCreated = true;
-            /*xTaskCreatePinnedToCore(
-                &WifiNetworkConnectionController::mqttTask,
-                "mqtt_task",
-                8192,
-                &inst,
-                tskIDLE_PRIORITY + 1,
-                &inst.mqttTaskHandle,
-                tskNO_AFFINITY
-            );*/
-
-
-                inst.wifiConnectedCallback("---WiFi connected!---");
-            
-               // bool authenticated = AuthenticationController::instance().init();
-               // ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
-/*
-                if (authenticated) {
-                // ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER");
-
-                    bool mqttInitialized = MqttProvider::get()->init();
-                    if (mqttInitialized) {
-                        SensorsController::instance().init();
-                    } else {
-                        ESP_LOGE(TAG, "Could not initialize MQTT...");
-                    }
-
-                    xTaskCreate(&WifiNetworkConnectionController::mqttTask, "mqtt_task", 8192, &inst, tskIDLE_PRIORITY + 1, &inst.mqttTaskHandle);
-
-                } else {
-                    //TODO
-                }*/
-
-
+            inst.wifiConnectedCallback("---WiFi connected!---");
         }
     }
 }
@@ -313,12 +191,4 @@ void WifiNetworkConnectionController::handleMqtt() {
         
         authInitDone = true;
     }
-
-   /* auto* mqtt = MqttProvider::get();
-    if (mqtt && mqtt->initialized) {
-        if (!taskCtrlInitDone) {
-            TaskController::instance().init();
-            taskCtrlInitDone = true;
-        }
-    }*/
 }
