@@ -40,14 +40,8 @@ bool CommonSetup::setupImpl(UserCredentials userCredentials, NetworkConnectionCo
     }
 
 
-
-    //static bool wifi_connected = false;
-
-
     connection::WifiConnectedCallback callback = [this](const std::string& ssid) {
         ESP_LOGI("CommonSetup", ">>>>>>>>>>Connected to: %s", ssid.c_str());
-
-      //  wifi_connected = true;  // Solo flag, nada más
 
         xTaskCreate(
             CommonSetup::authenticateWithServerTask,
@@ -56,79 +50,13 @@ bool CommonSetup::setupImpl(UserCredentials userCredentials, NetworkConnectionCo
             this,
             1,
             &this->authenticateWithServerTaskTaskHandle
-            //&authenticateWithServerTaskTaskHandle
         );
-
-       // bool authenticated = AuthenticationController::instance().init();
-       // ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
-
-        /*if (authenticated) {
-           // ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER");
-
-            bool mqttInitialized = MqttProvider::get()->init();
-            if (mqttInitialized) {
-                SensorsController::instance().init();
-            } else {
-                ESP_LOGE(TAG, "Could not initialize MQTT...");
-            }
-        }*/
     };
 
-    //authenticateWithServer(networkConnectionController);
     bool networkConnectionProviderInitialized = NetworkConnectionProvider::init(networkConnectionController, callback); //TODO no hace falta devolver bool, sino hay un callback
-
-
-
-   /* while (!wifi_connected) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-
-    bool authenticated = AuthenticationController::instance().init();
-    ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
-
-    if (authenticated) {
-        bool mqttInitialized = MqttProvider::get()->init();
-        if (mqttInitialized) {
-            SensorsController::instance().init();
-        } else {
-            ESP_LOGE(TAG, "Could not initialize MQTT...");
-        }
-    }*/
-
     
     return true;
 }
-
-void CommonSetup::authenticateWithServer(NetworkConnectionControllerBase* networkConnectionController) {
-   /* bool networkConnectionProviderInitialized = NetworkConnectionProvider::init(networkConnectionController);
-
-    ESP_LOGI(TAG, "###ConnectedToNetwork: %s", NetworkConnectionProvider::get()->connectedToNetwork() ? "true" : "false");
-
-
-    while(!NetworkConnectionProvider::get()->connectedToNetwork()){
-        ESP_LOGI(TAG, "###ConnectedToNetwork: %s", NetworkConnectionProvider::get()->connectedToNetwork() ? "true" : "false");
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }*/
-
-   // if (networkConnectionProviderInitialized) {
-      /*  bool authenticated = AuthenticationController::instance().init();
-        ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
-
-        if (authenticated) {
-           // ESP_LOGI(TAG, "###AUTHENTICATED WITH SERVER");
-
-            bool mqttInitialized = MqttProvider::get()->init();
-            if (mqttInitialized) {
-                SensorsController::instance().init();
-            } else {
-                ESP_LOGE(TAG, "Could not initialize MQTT...");
-            }
-        }*/
-   // } else {
-  //      ESP_LOGE(TAG, "Could not initialize network connection provider... Is server on?");
-   // }
-}
-
 
 void CommonSetup::authenticateWithServerTask(void* pvParameters) {
     CommonSetup* self = static_cast<CommonSetup*>(pvParameters);

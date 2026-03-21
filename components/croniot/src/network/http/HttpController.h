@@ -42,7 +42,7 @@ class HttpController {
 #include <string>
 #include "../../Result.h"
 #include "esp_log.h"
-#include "cJSON.h"
+#include "CJsonPtr.h"
 
 class HttpController {
 public:
@@ -58,19 +58,18 @@ protected:
             return Result(false, "Empty or invalid JSON: " + jsonString);
         }
 
-        cJSON* root = cJSON_Parse(jsonString.c_str());
+        CJsonPtr root(cJSON_Parse(jsonString.c_str()));
         if (!root) {
             ESP_LOGE(TAG, "cJSON_Parse() failed: %s", cJSON_GetErrorPtr());
             return Result(false, "Local cJSON_Parse() failed, JSON:\n" + jsonString);
         }
 
-        cJSON* successItem = cJSON_GetObjectItem(root, "success");
-        cJSON* messageItem = cJSON_GetObjectItem(root, "message");
+        cJSON* successItem = cJSON_GetObjectItem(root.get(), "success");
+        cJSON* messageItem = cJSON_GetObjectItem(root.get(), "message");
 
         bool success = (successItem && cJSON_IsBool(successItem)) ? cJSON_IsTrue(successItem) : false;
         std::string message = (messageItem && cJSON_IsString(messageItem)) ? messageItem->valuestring : "";
 
-        cJSON_Delete(root);
         return Result(success, message);
     }
 };

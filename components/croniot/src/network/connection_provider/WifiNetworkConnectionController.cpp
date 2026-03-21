@@ -172,7 +172,8 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // ✅ Configuraciones de potencia después de start
-    esp_err_t ps_result = esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    //POWER SAVE: esp_err_t ps_result = esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    esp_err_t ps_result = esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(TAG, "Power save MIN_MODEM result: %s", esp_err_to_name(ps_result));
     
     esp_err_t power_result = esp_wifi_set_max_tx_power(84);

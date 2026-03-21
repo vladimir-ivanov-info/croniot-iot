@@ -2,10 +2,8 @@
 #define TASKTYPE_H
 
 #include <string>
-//#include <vector>
 #include <list>
 #include "../Parameters/Parameter.h"
-//#include "cJSON.h"
 
 extern "C" {
     #include "cJSON.h"

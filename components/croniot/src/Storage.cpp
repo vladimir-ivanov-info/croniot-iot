@@ -470,7 +470,7 @@
 
 //#include "esp_littlefs.h"
 #include "esp_log.h"
-#include "cJSON.h"
+#include "CJsonPtr.h"
 #include <sys/stat.h>
 #include <dirent.h>
 #include <fstream>
@@ -521,29 +521,27 @@ ServerData Storage::getServerData() {
     buffer << file.rdbuf();
     file.close();
 
-    cJSON* root = cJSON_Parse(buffer.str().c_str());
+    CJsonPtr root(cJSON_Parse(buffer.str().c_str()));
     if (root) {
-        cJSON *address = cJSON_GetObjectItem(root, "serverAddress");
+        cJSON *address = cJSON_GetObjectItem(root.get(), "serverAddress");
         if (cJSON_IsString(address)) {
             serverData.serverAddress = address->valuestring;
         }
-        cJSON_Delete(root);
     }
 
     return serverData;
 }
 
 void Storage::saveServerData(const ServerData &serverData) {
-    cJSON* root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "serverAddress", serverData.serverAddress.c_str());
+    CJsonPtr root(cJSON_CreateObject());
+    cJSON_AddStringToObject(root.get(), "serverAddress", serverData.serverAddress.c_str());
 
-    char *jsonStr = cJSON_Print(root);
+    char *jsonStr = cJSON_Print(root.get());
     std::ofstream file("/littlefs/server_data.json");
     if (file.is_open()) {
         file << jsonStr;
         file.close();
     }
-    cJSON_Delete(root);
     cJSON_free(jsonStr);
 }
 
@@ -559,10 +557,10 @@ UserCredentials Storage::readUserCredentials() {
     buffer << file.rdbuf();
     file.close();
 
-    cJSON* root = cJSON_Parse(buffer.str().c_str());
+    CJsonPtr root(cJSON_Parse(buffer.str().c_str()));
     if (root) {
         auto extract = [&](const char *key) -> std::string {
-            cJSON *item = cJSON_GetObjectItem(root, key);
+            cJSON *item = cJSON_GetObjectItem(root.get(), key);
             return cJSON_IsString(item) ? std::string(item->valuestring) : std::string("");
         };
 
@@ -573,29 +571,27 @@ UserCredentials Storage::readUserCredentials() {
         credentials.deviceName = extract("deviceName");
         credentials.deviceToken = extract("deviceToken");
         credentials.deviceDescription = extract("deviceDescription");
-        cJSON_Delete(root);
     }
 
     return credentials;
 }
 
 void Storage::saveUserCredentials(const UserCredentials &credentials) {
-    cJSON* root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "accountEmail", credentials.accountEmail.c_str());
-    cJSON_AddStringToObject(root, "accountUuid", credentials.accountUuid.c_str());
-    cJSON_AddStringToObject(root, "accountPassword", credentials.accountPassword.c_str());
-    cJSON_AddStringToObject(root, "deviceUuid", credentials.deviceUuid.c_str());
-    cJSON_AddStringToObject(root, "deviceName", credentials.deviceName.c_str());
-    cJSON_AddStringToObject(root, "deviceToken", credentials.deviceToken.c_str());
-    cJSON_AddStringToObject(root, "deviceDescription", credentials.deviceDescription.c_str());
+    CJsonPtr root(cJSON_CreateObject());
+    cJSON_AddStringToObject(root.get(), "accountEmail", credentials.accountEmail.c_str());
+    cJSON_AddStringToObject(root.get(), "accountUuid", credentials.accountUuid.c_str());
+    cJSON_AddStringToObject(root.get(), "accountPassword", credentials.accountPassword.c_str());
+    cJSON_AddStringToObject(root.get(), "deviceUuid", credentials.deviceUuid.c_str());
+    cJSON_AddStringToObject(root.get(), "deviceName", credentials.deviceName.c_str());
+    cJSON_AddStringToObject(root.get(), "deviceToken", credentials.deviceToken.c_str());
+    cJSON_AddStringToObject(root.get(), "deviceDescription", credentials.deviceDescription.c_str());
 
-    char *jsonStr = cJSON_Print(root);
+    char *jsonStr = cJSON_Print(root.get());
     std::ofstream file("/littlefs/credentials.json");
     if (file.is_open()) {
         file << jsonStr;
         file.close();
     }
-    cJSON_Delete(root);
     cJSON_free(jsonStr);
 }
 

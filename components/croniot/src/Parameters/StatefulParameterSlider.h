@@ -15,7 +15,6 @@ public:
     StatefulParameterSlider() {}
     StatefulParameterSlider(int id, const std::string& name, const std::string& description, double stepSize, int minValue, int maxValue);
     StatefulParameterSlider(const std::string& name, const std::string& description, double stepSize, int minValue, int maxValue);
-     //StatefulParameterSlider(const std::string& name, const std::string& description);
 
     Parameter toParameter();
 

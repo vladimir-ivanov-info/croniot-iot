@@ -1,21 +1,3 @@
-/*#ifndef SIMPLETASKDATA_H
-#define SIMPLETASKDATA_H
-
-#include <map>
-
-class SimpleTaskData {
-
-    public:
-        int taskUid;
-        std::map<int, String> parametersValues;
-
-        SimpleTaskData(const int& taskUid, const std::map<int, String>& parametersValues) : taskUid(taskUid), parametersValues(parametersValues) {}
-};
-
-#endif
-
-*/
-
 #ifndef SIMPLETASKDATA_H
 #define SIMPLETASKDATA_H
 

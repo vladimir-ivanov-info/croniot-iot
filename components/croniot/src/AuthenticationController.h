@@ -15,9 +15,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "cJSON.h"
-
-//#include "esp123_vfs_spiffs.h"
+#include "CJsonPtr.h"
 
 class AuthenticationController {
 public:

@@ -29,11 +29,6 @@ public:
     UserCredentials userCredentials;
 
 private:
-    void authenticateWithServer(NetworkConnectionControllerBase* networkConnectionController);
-    //void handleMqtt();
-
-     
-
     static void authenticateWithServerTask(void* pvParameters);
     TaskHandle_t authenticateWithServerTaskTaskHandle;
 

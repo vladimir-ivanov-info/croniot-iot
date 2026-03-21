@@ -9,7 +9,6 @@ std::string TaskProgressUpdate::toJson() const {
     cJSON_AddStringToObject(root, "state", state.c_str());
     cJSON_AddNumberToObject(root, "progress", progress);
     cJSON_AddStringToObject(root, "errorMessage", errorMessage.c_str());
-    //cJSON_AddStringToObject(root, "messageSource", messageSource.c_str());
 
     char* jsonStr = cJSON_PrintUnformatted(root);
     std::string result = jsonStr ? jsonStr : "";

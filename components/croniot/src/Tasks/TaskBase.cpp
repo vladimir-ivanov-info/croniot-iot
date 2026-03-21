@@ -1,6 +1,6 @@
 #include "TaskBase.h"
 #include <cstring>
-#include "cJSON.h"
+#include "CJsonPtr.h"
 #include "esp_timer.h"
 
 #define TAG "TaskBase"
@@ -15,9 +15,7 @@ TaskBase::TaskBase(const char* name, uint32_t stackSize, UBaseType_t priority, U
 }
 
 void TaskBase::init(){
-    //ESP_LOGE(TAG, "1111111111111111111111111111111111111111111.");
     xTaskCreate(TaskBase::taskFunction, "taskBase_task", 8192, this, tskIDLE_PRIORITY + 1, &taskHandle);
-    //ESP_LOGE(TAG, "2222222222222222222222222222222222222222222.");
 }
 
 TaskBase::~TaskBase() {
@@ -37,13 +35,6 @@ void TaskBase::enqueueMessage(SimpleTaskData& taskData){
         ESP_LOGE(TAG, "Failed to allocate memory for TaskData.");
         return;
     }
-
-    /*ESP_LOGW(TAG, "TIMING: enqueueMessage at %lld", esp_timer_get_time());
-    if (xQueueSend(messageQueue, &taskDataCopy, portMAX_DELAY) != pdPASS) {
-    //if (xQueueSend(messageQueue, &taskDataCopy, 0) != pdPASS) {
-        ESP_LOGE(TAG, "Failed to enqueue TaskData.");
-        delete taskDataCopy;
-    }*/
 
     UBaseType_t waiting = uxQueueMessagesWaiting(messageQueue);
     ESP_LOGW(TAG, "TIMING: enqueueMessage at %lld (queue depth: %u)", esp_timer_get_time(), waiting);
@@ -68,22 +59,21 @@ std::string TaskBase::byteArrayToString(uint8_t* data, unsigned int length) {
 TaskData TaskBase::processMessage(const std::string& taskDataJson) {
     TaskData taskData;
 
-    cJSON* root = cJSON_Parse(taskDataJson.c_str());
+    CJsonPtr root(cJSON_Parse(taskDataJson.c_str()));
     if (!root) {
         ESP_LOGE(TAG, "Failed to parse JSON: %s", cJSON_GetErrorPtr());
         return taskData;
     }
 
-    cJSON* taskUidNode = cJSON_GetObjectItem(root, "taskUid");
+    cJSON* taskUidNode = cJSON_GetObjectItem(root.get(), "taskUid");
     if (!cJSON_IsNumber(taskUidNode)) {
         ESP_LOGE(TAG, "taskUid not found or not a number");
-        cJSON_Delete(root);
         return taskData;
     }
 
     taskData.taskUid = taskUidNode->valueint;
 
-    cJSON* parameters = cJSON_GetObjectItem(root, "parametersValues");
+    cJSON* parameters = cJSON_GetObjectItem(root.get(), "parametersValues");
     if (cJSON_IsObject(parameters)) {
         cJSON* param = nullptr;
         cJSON_ArrayForEach(param, parameters) {
@@ -94,6 +84,5 @@ TaskData TaskBase::processMessage(const std::string& taskDataJson) {
         }
     }
 
-    cJSON_Delete(root);
     return taskData;
 }

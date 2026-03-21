@@ -1,25 +1,3 @@
-/*#ifndef MESSAGETASK_H
-#define MESSAGETASK_H
-
-#include <map>
-
-class MessageTask{
-
-    public:
-        MessageTask(){};
-
-    private:
-        int taskTypeUid;
-        std::map<int, String> parametersValues;
-        int taskUid;
-};
-
-#endif
-
-
-*/
-
-
 #ifndef MESSAGETASK_H
 #define MESSAGETASK_H
 

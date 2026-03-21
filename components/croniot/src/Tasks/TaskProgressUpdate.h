@@ -20,8 +20,6 @@ public:
     float progress;
     std::string errorMessage;
 
-    //std::string messageSource = "iot";
-
     std::string toJson() const;
 };
 

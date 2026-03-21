@@ -1,37 +1,6 @@
-// #include "SensorType.h"
-
-// SensorType::SensorType(String uid, String name, String description, Parameter parameter)
-//     : uid(uid), name(name), description(description) {
-//     parameters.push_back(parameter);
-// }
-
-// JsonObject SensorType::toJson(JsonObject root) {
-//     root["uid"] = uid;
-//     root["name"] = name;
-//     root["description"] = description;
-    
-//     JsonArray parametersJson = root["parameters"].to<JsonArray>();
-
-//     for (const Parameter& param : parameters) {
-//         JsonObject paramJson = parametersJson.add<JsonObject>();
-
-//         paramJson["name"] = param.name;
-//         paramJson["type"] = param.type;
-//         paramJson["description"] = param.description;
-//         paramJson["unit"] = param.unit;
-
-//         JsonObject constraintsJson = paramJson["constraints"].to<JsonObject>();
-
-//         for (const auto& kv : param.constraints) {
-//             constraintsJson[kv.first] = kv.second;
-//         }
-//     }
-
-//     return root;
-// }
-
-
 #include "SensorType.h"
+
+#include <string>
 
 extern "C" {
     #include "cJSON.h"
@@ -49,7 +18,7 @@ SensorType::SensorType(const std::string& uid, const std::string& name, const st
 cJSON* SensorType::toJson(cJSON* root) const {
     if (!root) root = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(root, "uid", uid.c_str());
+    cJSON_AddNumberToObject(root, "uid", std::stoi(uid));
     cJSON_AddStringToObject(root, "name", name.c_str());
     cJSON_AddStringToObject(root, "description", description.c_str());
 
@@ -57,6 +26,7 @@ cJSON* SensorType::toJson(cJSON* root) const {
 
     for (const Parameter& param : parameters) {
         cJSON* paramJson = cJSON_CreateObject();
+        cJSON_AddNumberToObject(paramJson, "uid", param.uid);
         cJSON_AddStringToObject(paramJson, "name", param.name.c_str());
         cJSON_AddStringToObject(paramJson, "type", param.type.c_str());
         cJSON_AddStringToObject(paramJson, "description", param.description.c_str());

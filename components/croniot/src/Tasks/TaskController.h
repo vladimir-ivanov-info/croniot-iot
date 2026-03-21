@@ -59,10 +59,9 @@ private:
 
 
     std::map<int, TaskBase*> tasksMap;
-        std::map<int, TaskBase*> taskStateInfoSyncMap;
+    std::map<int, TaskBase*> taskStateInfoSyncMap;
 
     std::map<int, std::string> stringToMap(const std::string& input);
-
 
 
     QueueHandle_t progressUpdateQueue;

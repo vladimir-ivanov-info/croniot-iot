@@ -60,8 +60,4 @@ idf_component_register(
         driver
         esp_wifi
         espp
-        #vfs_littlefs
-        #esp_littlefs
-        #esp_littlefs
-        #joltwallet__littlefs
 )

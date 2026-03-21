@@ -1,8 +1,5 @@
 #include "Result.h"
 #include "cJSON.h"
-//#include "cjson/cJSON.h"
-//#include <cjson/cJSON.h>
-
 
 std::string Result::toString() const {
     cJSON* root = cJSON_CreateObject();

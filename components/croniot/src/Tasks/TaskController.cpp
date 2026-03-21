@@ -3,7 +3,7 @@
 #include <string>
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "cJSON.h"
+#include "CJsonPtr.h"
 #include "TaskController.h"
 
 extern std::string DEVICE_UUID_EXTERN;
@@ -26,15 +26,6 @@ void TaskController::init(){
         ESP_LOGE("TaskController", "task->run %d", task->getUid());
     }
 
-   /* progressUpdateQueue = xQueueCreate(10, sizeof(TaskProgressUpdate*));
-    if (progressUpdateQueue == nullptr) {
-        ESP_LOGE("TaskController", "Failed to create progressUpdateQueue");
-    }*/
-
-
-    //ESTP DEBE IR DESPUES DEL FOR:
-
-    //xTaskCreatePinnedToCore(taskFunction, "TaskController", 4096, this, 1, &taskHandle, 1);
     xTaskCreate(taskFunction, "TaskController", 4096, this, 5, &taskHandle);
 
     xTaskCreate(taskProgressUpdateFunction, "TaskProgressUpdateFunction", 2*4096, this, 5, &taskProgressUpdateHandle);
@@ -78,8 +69,9 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
     TaskController* taskInstance = static_cast<TaskController*>(pvParameters);
 
     while(true){
-        TaskProgressUpdate *taskProgressUpdate = nullptr;
-        if(xQueueReceive(taskInstance->progressUpdateQueue, &taskProgressUpdate, portMAX_DELAY) == pdPASS && taskProgressUpdate){
+        TaskProgressUpdate *raw = nullptr;
+        if(xQueueReceive(taskInstance->progressUpdateQueue, &raw, portMAX_DELAY) == pdPASS && raw){
+            std::unique_ptr<TaskProgressUpdate> taskProgressUpdate(raw);
 
             int64_t t0 = esp_timer_get_time();
 
@@ -92,8 +84,6 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
 
             ESP_LOGW("TaskController", "TIMING: toJson=%lldus publish=%lldus total=%lldus | %s",
                      (t1-t0), (t2-t1), (t2-t0), message.c_str());
-
-            delete taskProgressUpdate;
         }
     }
 }
@@ -121,42 +111,18 @@ std::map<int, std::string> TaskController::stringToMap(const std::string& input)
     return result;
 }
 
-/*TaskData TaskController::processMessage(const std::string& message){
-    TaskData taskData;
-    JsonDocument doc;
-
-    if (deserializeJson(doc, message).failed()) {
-        ESP_LOGE("TaskController", "JSON parse failed");
-        return taskData;
-    }
-
-    taskData.taskUid = doc["taskUid"];
-    taskData.taskTypeUid = doc["taskTypeUid"];
-
-    JsonObject values = doc["parametersValues"].as<JsonObject>();
-    for (JsonPair kv : values) {
-        int key = atoi(kv.key().c_str());
-        std::string value = kv.value().as<std::string>();
-        taskData.parametersValues[key] = value;
-    }
-
-    return taskData;
-}*/
-
-
-
 TaskData TaskController::processMessage(const std::string& message) {
     TaskData taskData;
 
-    cJSON* root = cJSON_Parse(message.c_str());
+    CJsonPtr root(cJSON_Parse(message.c_str()));
     if (!root) {
         ESP_LOGE("TaskController", "JSON parse failed");
         return taskData;
     }
 
     // Leer taskUid y taskTypeUid
-    cJSON* taskUid = cJSON_GetObjectItem(root, "taskUid");
-    cJSON* taskTypeUid = cJSON_GetObjectItem(root, "taskTypeUid");
+    cJSON* taskUid = cJSON_GetObjectItem(root.get(), "taskUid");
+    cJSON* taskTypeUid = cJSON_GetObjectItem(root.get(), "taskTypeUid");
     if (cJSON_IsNumber(taskUid)) {
         taskData.taskUid = taskUid->valueint;
     }
@@ -165,7 +131,7 @@ TaskData TaskController::processMessage(const std::string& message) {
     }
 
     // Leer parametersValues
-    cJSON* parametersValues = cJSON_GetObjectItem(root, "parametersValues");
+    cJSON* parametersValues = cJSON_GetObjectItem(root.get(), "parametersValues");
     if (cJSON_IsObject(parametersValues)) {
         cJSON* item = parametersValues->child;
         while (item != nullptr) {
@@ -178,7 +144,6 @@ TaskData TaskController::processMessage(const std::string& message) {
         }
     }
 
-    cJSON_Delete(root);
     return taskData;
 }
 
@@ -240,53 +205,29 @@ void TaskController::processMessageTaskData(int taskTypeUid, const std::string& 
 }
 
 void TaskController::processMessageTaskStateInfoSync(int taskTypeUid, const std::string& message, unsigned int length){
-    ESP_LOGI("TaskController", "Processing MQTT message: %s", message.c_str());
-    //TaskData taskData = processMessage(message); qwe
+    ESP_LOGI("TaskController", "Processing MQTT task sync message: %s", message.c_str());
 
-        int taskIndex = 0;
-        for(TaskBase *task : tasks){
-            //ESP_LOGI("TaskController", "Checking task %d at address: %p", taskIndex, task);
-            
-            if (task == nullptr) {
-                ESP_LOGE("TaskController", "Task %d is NULL!", taskIndex);
-                taskIndex++;
-                continue;
-            }
-            
-            //ESP_LOGI("TaskController", "Task %d UID: %d", taskIndex, task->getUid());
-            
-            if(task->getUid() == taskTypeUid){
-                //ESP_LOGI("TaskController", "Found matching task %d, sending current state", taskIndex);
-                //task->enqueueMessage(simpleData);
-
-                std::string currentState = task->getCurrentState();
-                    //ESP_LOGI("TaskController", "Current state: %s", currentState.c_str());
-
-                TaskProgressUpdate taskProgressUpdate(taskTypeUid, -1, currentState, -1.0f, "");
-                enqueueTaskProgressUpdate(taskProgressUpdate);
-
-                ESP_LOGI("TaskController", "Message enqueued successfully");
-            }
-            
-            taskIndex++;
-        }
-
-}
-
-
-/*
-void TaskController::runTaskRightNow(TaskData& taskData){
-    SimpleTaskData simpleData(taskData.taskUid, taskData.parametersValues);
-
-    ESP_LOGI("TaskController", "Run task type UID: %d", taskData.taskTypeUid);
-
+    int taskIndex = 0;
     for(TaskBase *task : tasks){
-        if(task->getUid() == taskData.taskTypeUid){
-            task->enqueueMessage(simpleData);
+        
+        if (task == nullptr) {
+            ESP_LOGE("TaskController", "Task %d is NULL!", taskIndex);
+            taskIndex++;
+            continue;
         }
+                    
+        if(task->getUid() == taskTypeUid){
+            std::string currentState = task->getCurrentState();
+
+            TaskProgressUpdate taskProgressUpdate(taskTypeUid, -1, currentState, -1.0f, "");
+            enqueueTaskProgressUpdate(taskProgressUpdate);
+
+            ESP_LOGI("TaskController", "Message enqueued successfully");
+        }
+        
+        taskIndex++;
     }
 }
-*/
 
 void TaskController::runTaskRightNow(TaskData& taskData){
     SimpleTaskData simpleData(taskData.taskUid, taskData.parametersValues);
@@ -296,7 +237,6 @@ void TaskController::runTaskRightNow(TaskData& taskData){
 
     int taskIndex = 0;
     for(TaskBase *task : tasks){
-        //ESP_LOGI("TaskController", "Checking task %d at address: %p", taskIndex, task);
         
         if (task == nullptr) {
             ESP_LOGE("TaskController", "Task %d is NULL!", taskIndex);
