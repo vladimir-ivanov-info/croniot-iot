@@ -1,6 +1,5 @@
 .pio/**
 build/**
-**sdkconfig**
 *.lock
 managed_components/**
 .vscode/.browse.c_cpp.db*
