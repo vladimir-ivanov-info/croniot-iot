@@ -260,3 +260,5 @@ extern "C" void app_main() {
 ## Real-world usage
 
 [**croniot-watering-system**](https://github.com/user/croniot-watering-system) — An autonomous solar-powered plant watering system built on this framework. 5 tasks (watering sequences, pump control, LED control), 6 sensors (battery, solar panel, WiFi, RAM, system time), running on ESP32-C6 with I2C ADC and relay control.
+
+[![Demo video](https://img.youtube.com/vi/sxZ00cP9hIw/maxresdefault.jpg)](https://www.youtube.com/watch?v=sxZ00cP9hIw)
