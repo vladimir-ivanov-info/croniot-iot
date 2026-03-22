@@ -37,7 +37,7 @@ Want a watering system? Combine `TaskWaterPlants` + `SensorBattery` + `SensorSol
 │       │              │                 │                │
 │  ┌────┴──────────────┴─────────────────┴──────────┐     │
 │  │           Network Abstraction Layer            │     │
-│  │        WiFi  ←→  HTTP / MQTT  ←→  SIM7600      │     │
+│  │        WiFi  ←→  HTTP / MQTT  ←→  LTE          │     │
 │  └────────────────────────────────────────────────┘     │
 ├─────────────────────────────────────────────────────────┤
 │               ESP-IDF  /  FreeRTOS                      │
