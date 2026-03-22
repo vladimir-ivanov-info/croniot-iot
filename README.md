@@ -29,16 +29,16 @@ Want a watering system? Combine `TaskWaterPlants` + `SensorBattery` + `SensorSol
 │                    Your Device Code                     │
 │  Custom tasks    Reusable templates    Custom sensors   │
 ├─────────────────────────────────────────────────────────┤
-│                     croniot-iot                          │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐    │
-│  │   Task   │  │  Sensor  │  │   Authentication   │    │
-│  │  System  │  │  System  │  │    & Setup          │    │
-│  └────┬─────┘  └────┬─────┘  └────────┬───────────┘    │
+│                     croniot-iot                         │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐     │
+│  │   Task   │  │  Sensor  │  │   Authentication   │     │
+│  │  System  │  │  System  │  │    & Setup         │     │
+│  └────┬─────┘  └─────┬────┘  └─────────┬──────────┘     │
 │       │              │                 │                │
-│  ┌────┴──────────────┴─────────────────┴───────────┐    │
-│  │           Network Abstraction Layer              │    │
-│  │        WiFi  ←→  HTTP / MQTT  ←→  SIM7600       │    │
-│  └──────────────────────────────────────────────────┘    │
+│  ┌────┴──────────────┴─────────────────┴──────────┐     │
+│  │           Network Abstraction Layer            │     │
+│  │        WiFi  ←→  HTTP / MQTT  ←→  SIM7600      │     │
+│  └────────────────────────────────────────────────┘     │
 ├─────────────────────────────────────────────────────────┤
 │               ESP-IDF  /  FreeRTOS                      │
 └─────────────────────────────────────────────────────────┘
