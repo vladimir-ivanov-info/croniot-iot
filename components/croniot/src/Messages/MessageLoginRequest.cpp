@@ -13,7 +13,6 @@ std::string MessageLoginRequest::toJson() const {
     cJSON_AddStringToObject(root, "deviceUuid", deviceUuid.c_str());
     cJSON_AddStringToObject(root, "deviceToken", deviceToken.c_str());
 
-    //char *jsonStr = cJSON_PrintUnformatted(root);
     char *jsonStr = cJSON_Print(root);
 
     std::string json = jsonStr;

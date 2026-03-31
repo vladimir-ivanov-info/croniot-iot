@@ -8,11 +8,7 @@ static const char* TAG = "CurrentDateTime";
 void CurrentDateTimeController::taskFunction(void* pvParameters) {
     CurrentDateTimeController* self = static_cast<CurrentDateTimeController*>(pvParameters);
 
-
-    //sync with server here
-
     self->synchronizeWithServer();
-
 
     const int resyncPeriodicityInSeconds = 600;
     int secondsUntilNextSync = resyncPeriodicityInSeconds;
@@ -60,8 +56,5 @@ void CurrentDateTimeController::synchronizeWithServer() {
 }
 
 void CurrentDateTimeController::run() {
-    //synchronizeWithServer();
-                                //xTaskCreatePinnedToCore(taskFunction, "TaskDateTime", 4096, this, 1, &taskHandle, 1);
     xTaskCreate(taskFunction, "TaskDateTime", 4096, this, 1, &taskHandle);
-
 }

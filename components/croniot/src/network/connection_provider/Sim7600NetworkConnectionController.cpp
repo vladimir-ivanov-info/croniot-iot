@@ -19,16 +19,6 @@ bool Sim7600NetworkConnectionController::init(connection::WifiConnectedCallback 
     gpio_reset_pin(LED_PIN);
     gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
 
-    // Crea la tarea MQTT
-    /*xTaskCreatePinnedToCore(
-        &Sim7600NetworkConnectionController::mqttTask,
-        "mqtt_task",
-        4096,
-        this,
-        configMAX_PRIORITIES - 1,
-        &mqttTaskHandle,
-        tskNO_AFFINITY
-    );*/
     xTaskCreate(&Sim7600NetworkConnectionController::mqttTask, "mqtt_task", 4096, this, configMAX_PRIORITIES - 1, &mqttTaskHandle);
 
     return true;

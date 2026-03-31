@@ -77,8 +77,6 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
         }
     }
 
-    while(true){
-        //ESP_LOGI(TAG, "### CommonSetup authenticateWithServerTask waiting...");
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
+    ESP_LOGI(TAG, "Authentication task completed, freeing resources");
+    vTaskDelete(NULL);
 }

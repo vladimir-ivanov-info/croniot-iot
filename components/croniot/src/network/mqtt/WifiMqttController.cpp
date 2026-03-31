@@ -58,12 +58,9 @@ bool WifiMqttController::init() {
     return esp_mqtt_client_start(mqttClient) == ESP_OK;
 }
 
-
-
 Result WifiMqttController::publish(const std::string& topic, const std::string& message) {
 
     //ESP_LOGI(TAG, "PUBLISHING MQTT %s %s ...", topic.c_str(), message.c_str());
-
 
     if (!mqttClient){
         ESP_LOGI(TAG, "MQTT not initialized...");
@@ -72,25 +69,21 @@ Result WifiMqttController::publish(const std::string& topic, const std::string& 
         //ESP_LOGI(TAG, "MQTT initialized...");
     }
 
-   // if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        int msgId = esp_mqtt_client_publish(mqttClient, topic.c_str(), message.c_str(), 0, 1, 0);
-        //ESP_LOGI(TAG, "MQTT msgId msgId msgId msgId...");
-    //    xSemaphoreGive(mutex);
-        if (msgId > 0) {
-            //ESP_LOGI(TAG, "Published successfully...");
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        int msgId = esp_mqtt_client_publish(
+            mqttClient, topic.c_str(), message.c_str(), 0, 2, 0
+        );
+        xSemaphoreGive(mutex);
+        if (msgId >= 0) {
             return Result(true, "Published successfully");
         } else {
-            ESP_LOGI(TAG, "MQTT state: %d", msgId);
+            ESP_LOGW(TAG, "Publish failed, msgId: %d", msgId);
+            return Result(false, "Publish failed");
         }
-        //ESP_LOGI(TAG, "Published failed...");
-        return Result(false, "Publish failed");
-    //}
+    }
 
-    //ESP_LOGI(TAG, "MQTT publish mutex timeout...");
+    ESP_LOGW(TAG, "MQTT publish mutex timeout");
     return Result(false, "MQTT publish mutex timeout");
-
-
-      //  return Result(false, "Testing the code...");
 
 }
 
@@ -123,6 +116,16 @@ void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t b
             ESP_LOGI(TAG, "✅ MQTT connected");
             controller->initialized = true;
             controller->reconnecting = false;
+
+            // Re-subscribe all topics after reconnection
+            for (const auto& pair : controller->topicTaskMap) {
+                esp_mqtt_client_subscribe(controller->mqttClient, pair.first.c_str(), 1);
+                ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
+            }
+            for (const auto& pair : controller->topicTaskStateInfoSyncMap) {
+                esp_mqtt_client_subscribe(controller->mqttClient, pair.first.c_str(), 1);
+                ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
+            }
             break;
 
         case MQTT_EVENT_DISCONNECTED:
@@ -163,82 +166,17 @@ void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t b
         
             break;
         }
-
-
-            
     }
 }
 
 void WifiMqttController::handleMessage(const std::string& topic, const std::string& payload) {
-
-
-
     //ESP_LOGI(TAG, "MQTT: %s   %s", topic.c_str(), payload.c_str());
     auto* msg = new MqttMsg{topic, payload};
     if (xQueueSend(msgQueue, &msg, 0) != pdPASS) {
         ESP_LOGW(TAG, "MQTT queue full, dropping message: %s", topic.c_str());
         delete msg; // evita leak si no pudo encolar
     }
-
-/*
-    //meter en cola y que otra tarea los vaya procesando
-
-//     String topicStr = String(topic);
-//     Serial.print("MQTT message arrived on topic: "); Serial.println(topicStr);
-
-//     int subTopicsCount = 0;
-     //String *subTopics = StringUtil::split(topicStr, "/", subTopicsCount);
-
-     //std::vector<std::string> subTopics = StringUtil::split(topicStr, "/", subTopicsCount);
-    const std::vector<std::string> subTopics = StringUtil::split(topic, "/");
-    if (subTopics.empty()) {
-        ESP_LOGW(TAG, "Received MQTT topic with no sub-topic: '%s'", topic.c_str());
-        return;
-    }
-
-    const std::string& taskType = subTopics.back();
-    ESP_LOGI(TAG, "Task type: %s", taskType.c_str());
-
-     //std::string taskType = subTopics[subTopicsCount - 1];
-//     Serial.print("Task type: "); Serial.println(taskType);
-       // ESP_LOGI(TAG, "Task type: %s", taskType.c_str());
-
-//     TaskController::instance().processMessage(taskType.toInt(), String(payload), len);
-
-
-    ESP_LOGI(TAG, "Message received on topic: %s", topic.c_str());
-
-
-
-    int taskTypeUid = -1;
-    auto res = std::from_chars(taskType.data(),
-                               taskType.data() + taskType.size(),
-                               taskTypeUid);       // base 10 por defecto
-
-    if (res.ec != std::errc()) {
-        ESP_LOGE(TAG, "Task type no numérico o fuera de rango: %s",
-                 taskType.c_str());
-        return;
-    }
-
-
-    auto it = topicTaskMap.find(topic);
-    auto itTaskStateInfoSyncMap = topicTaskStateInfoSyncMap.find(topic);
-    
-    if (it != topicTaskMap.end()) {
-        // Puedes pasar payload a tu task directamente o procesarlo como string.
-        //TaskController::instance().processMessage(tasTypeUid, payload, payload.length());
-        TaskController::instance().processMessageTaskData(taskTypeUid, payload, payload.length());
-    } else if(itTaskStateInfoSyncMap != topicTaskStateInfoSyncMap.end()){ //TODOOOOOOOOOOOOOOO
-        TaskController::instance().processMessageTaskStateInfoSync(taskTypeUid, payload, payload.length());
-    }
-    else {
-        ESP_LOGW(TAG, "No handler registered for topic: %s", topic.c_str());
-    }
-    */
 }
-
-
 
 void WifiMqttController::WorkerTask(void* arg) {
     auto* self = static_cast<WifiMqttController*>(arg);
@@ -250,7 +188,6 @@ void WifiMqttController::WorkerTask(void* arg) {
         }
     }
 }
-
 
 void WifiMqttController::processInWorker(const std::string& topic,
                                          const std::string& payload) {

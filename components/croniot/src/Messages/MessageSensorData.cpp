@@ -13,7 +13,7 @@ std::string MessageSensorData::toString() const {
     std::string result(jsonStr);
 
     cJSON_Delete(root);
-    cJSON_free(jsonStr); // ✅ IMPORTANTE: usar cJSON_free
+    cJSON_free(jsonStr);
 
     return result;
 }

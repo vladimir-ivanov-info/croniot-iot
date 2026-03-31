@@ -136,17 +136,18 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
         esp_wifi_connect();
     }
     else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
-        //ESP_LOGI(TAG_WIFI, "Got IP");
         ip_event_got_ip_t* event = static_cast<ip_event_got_ip_t*>(data);
         ESP_LOGI(TAG_WIFI, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         inst.setWifiConnected(true);
-            //inst.wifiConnected = true
         NetworkManager::instance().setConnectedToWifi(true);
 
-        // Crea la tarea MQTT sólo una vez
         if (!inst.taskCreated) {
+            // First connection: full authentication + MQTT init
             inst.taskCreated = true;
             inst.wifiConnectedCallback("---WiFi connected!---");
+        } else {
+            // WiFi reconnected: MQTT will auto-reconnect and re-subscribe (handled in MQTT_EVENT_CONNECTED)
+            ESP_LOGI(TAG_WIFI, "WiFi reconnected — MQTT will re-subscribe automatically");
         }
     }
 }

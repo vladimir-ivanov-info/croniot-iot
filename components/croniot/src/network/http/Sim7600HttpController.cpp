@@ -1,14 +1,3 @@
-/*#include "Sim7600HttpController.h"
-
-
-
-Result Sim7600HttpController::sendHttpPost(String content, String route){
-    return Sim7600::instance().sendHttpPost(content, route);
-}
-
-*/
-
-
 #include "Sim7600HttpController.h"
 
 Result Sim7600HttpController::sendHttpPost(const std::string& content, const std::string& route) {
