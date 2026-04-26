@@ -5,8 +5,7 @@
 #include "esp_timer.h"
 #include "CJsonPtr.h"
 #include "TaskController.h"
-
-extern std::string DEVICE_UUID_EXTERN;
+#include "comm/MessageBus.h"
 
 void TaskController::init(){
 
@@ -75,11 +74,10 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
 
             int64_t t0 = esp_timer_get_time();
 
-            std::string topic = "/iot_to_server/task_progress_update/" + DEVICE_UUID_EXTERN;
             std::string message = taskProgressUpdate->toJson();
 
             int64_t t1 = esp_timer_get_time();
-            MqttProvider::get()->publish(topic, message);
+            croniot::MessageBus::instance().publishTaskProgressUpdate(message);
             int64_t t2 = esp_timer_get_time();
 
             ESP_LOGW("TaskController", "TIMING: toJson=%lldus publish=%lldus total=%lldus | %s",
@@ -150,20 +148,10 @@ TaskData TaskController::processMessage(const std::string& message) {
 
 void TaskController::registerCallback(const std::string& deviceUuid, int taskTypeUid, TaskBase* taskInstance){
     tasksMap[taskTypeUid] = taskInstance;
-    std::string topic1 = "/server/" + deviceUuid + "/task_type/" + std::to_string(taskTypeUid);
+    taskStateInfoSyncMap[taskTypeUid] = taskInstance;
 
-    //taskStateInfoSyncMap[taskTypeUid] = taskInstance;
-    //std::string topictopicTaskStateInfoSyncMap = "/server/" + deviceUuid + "/task_state_info_sync/" + std::to_string(taskTypeUid);
-
-    ESP_LOGI("TaskController", "MQTT listening topic: %s", topic1.c_str());
-    MqttProvider::get()->registerCallback(topic1, taskInstance);
-
-
-
-    //std::string topic2 = "/server/" + deviceUuid + "/task_state_info_sync"; // + std::to_string(taskTypeUid);
-    std::string topic2 = "/server/" + deviceUuid + "/task_state_info_sync/" + std::to_string(taskTypeUid); // + std::to_string(taskTypeUid);
-    ESP_LOGI("TaskController", "MQTT listening topic: %s", topic2.c_str());
-    MqttProvider::get()->registerCallbackTaskStateInfoSync(topic2, taskInstance);
+    croniot::MessageBus::instance().subscribeTaskCommand(taskTypeUid, taskInstance);
+    croniot::MessageBus::instance().subscribeTaskStateInfoSync(taskTypeUid, taskInstance);
 }
 
 

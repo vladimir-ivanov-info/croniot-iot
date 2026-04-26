@@ -39,8 +39,13 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/network/mqtt/WifiMqttController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/network/sim7600/Sim7600.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/MessageBus.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/RemoteChannel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannel.cpp
+
     INCLUDE_DIRS
         src
+        src/comm
         src/Messages
         src/Parameters
         src/Sensors
@@ -60,4 +65,5 @@ idf_component_register(
         driver
         esp_wifi
         espp
+        bt
 )

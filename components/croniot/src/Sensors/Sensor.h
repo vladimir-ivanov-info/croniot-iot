@@ -2,20 +2,18 @@
 #define SENSOR_H
 
 #include <string>
-#include "Messages/MessageSensorData.h"
-#include "network/mqtt/MqttProvider.h"
 
-// TODO rename to SensorProcess or SensorTask
+#include "Messages/MessageSensorData.h"
+#include "comm/MessageBus.h"
+
 class Sensor {
 public:
     virtual void run() = 0;
 
 protected:
-    // TODO delegate this method to another class. SensorController, for example
-    void sendSensorData(const std::string& deviceUuid, int sensorUid, const std::string& sensorValue) {
+    void sendSensorData(int sensorUid, const std::string& sensorValue) {
         MessageSensorData messageSensorData(sensorUid, sensorValue);
-        std::string topicSensorData = "/" + deviceUuid + "/sensor_data";
-        MqttProvider::get()->publish(topicSensorData.c_str(), messageSensorData.toString().c_str());
+        croniot::MessageBus::instance().publishSensorData(sensorUid, messageSensorData.toString());
     }
 };
 

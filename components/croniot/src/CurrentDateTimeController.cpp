@@ -44,9 +44,15 @@ bool CurrentDateTimeController::isCurrentTime(const std::string& time) {
 }
 
 void CurrentDateTimeController::synchronizeWithServer() {
-    Result resultHour = HttpProvider::get()->sendHttpPost("", "/hour");
-    Result resultMinute = HttpProvider::get()->sendHttpPost("", "/minute");
-    Result resultSecond = HttpProvider::get()->sendHttpPost("", "/second");
+    HttpController* http = HttpProvider::get();
+    if (http == nullptr) {
+        ESP_LOGE(TAG, "HTTP provider is null, skipping time synchronization");
+        return;
+    }
+
+    Result resultHour = http->sendHttpPost("", "/hour");
+    Result resultMinute = http->sendHttpPost("", "/minute");
+    Result resultSecond = http->sendHttpPost("", "/second");
 
     ESP_LOGI(TAG, "Time from server: %s:%s", resultHour.message.c_str(), resultMinute.message.c_str());
 
