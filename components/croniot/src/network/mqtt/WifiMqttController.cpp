@@ -22,13 +22,12 @@ bool WifiMqttController::init() {
         4096, this, 9, nullptr, tskNO_AFFINITY
     );
 
-    static std::string uriStr;  // static para que el puntero siga válido al iniciar MQTT
-   // uriStr = "mqtt://" + NetworkManager::instance().serverAddress + ":" + std::to_string(NetworkManager::instance().serverMqttPort);
-    //uriStr = "mqtt://51.77.195.204:" + std::to_string(NetworkManager::instance().serverMqttPort);
+    static std::string uriStr;
+    uriStr = "mqtt://" + NetworkManager::instance().serverAddress + ":" + std::to_string(NetworkManager::instance().serverMqttPort);
+    //uriStr = "mqtt://57.131.29.79:" + std::to_string(NetworkManager::instance().serverMqttPort);
+    //uriStr = 
+   // ESP_LOGI(TAG, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s", uriStr.c_str());
 
-    //TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-    //uriStr = "mqtt://192.168.50.163:" + std::to_string(NetworkManager::instance().serverMqttPort); //TODO
-    uriStr = "mqtt://57.131.29.79:" + std::to_string(NetworkManager::instance().serverMqttPort); //TODO
 
     esp_mqtt_client_config_t config = {};
     config.broker.address.uri = uriStr.c_str();  // ⚠️ Usar 'broker.address.uri' en ESP-IDF 5.x

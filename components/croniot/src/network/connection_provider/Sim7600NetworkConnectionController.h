@@ -17,6 +17,7 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 
 // HTTP over SIM7600
 #include "network/sim7600/Sim7600.h"
@@ -40,8 +41,6 @@ private:
     // si quieres indicar estado con un LED
     static constexpr gpio_num_t LED_PIN = GPIO_NUM_13;
     volatile bool networkUp = false;
-
-    //void setNetworkUp(bool up);
 
     void handleMqtt();
 };

@@ -1,19 +1,10 @@
 #ifndef COMMONSETUP_H
 #define COMMONSETUP_H
 
-#include "network/mqtt/MqttProvider.h"
-#include "network/NetworkManager.h"
-#include "Tasks/TaskController.h"
-#include "AuthenticationController.h"
-#include "CurrentDateTimeController.h"
-#include "network/http/HttpProvider.h"
-#include "network/http/HttpController.h"
-#include "esp_task_wdt.h"
-#include "network/connection_provider/NetworkConnectionProvider.h"
-#include "network/connection_provider/NetworkConnectionController.h"
-#include "network/connection_provider/NetworkConnectionControllerBase.h"
-#include "UserCredentials.h"
-#include "Storage.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "CroniotConfig.h"
 
 class CommonSetup {
 public:
@@ -22,18 +13,11 @@ public:
         return _instance;
     }
 
-    bool setup(UserCredentials userCredentials, NetworkConnectionControllerBase* networkConnectionController) {
-        return setupImpl(userCredentials, networkConnectionController);
-    }
-
-    UserCredentials userCredentials;
+    bool setup(const croniot::CroniotConfig& config);
 
 private:
     static void authenticateWithServerTask(void* pvParameters);
-    TaskHandle_t authenticateWithServerTaskTaskHandle;
-
-
-    bool setupImpl(UserCredentials userCredentials, NetworkConnectionControllerBase* networkConnectionController);
+    TaskHandle_t authenticateWithServerTaskTaskHandle = nullptr;
 };
 
 #endif

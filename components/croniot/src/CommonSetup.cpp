@@ -1,48 +1,72 @@
 #include "CommonSetup.h"
+
+#include <memory>
+
 #include "esp_log.h"
+#include "esp_task_wdt.h"
+
+#include "AuthenticationController.h"
+#include "CurrentDateTimeController.h"
+#include "Sensors/SensorsController.h"
+#include "Storage.h"
+#include "Tasks/TaskController.h"
+#include "UserCredentials.h"
+#include "comm/BleChannel.h"
+#include "comm/MessageBus.h"
+#include "comm/RemoteChannel.h"
 
 static const char* TAG = "CommonSetup";
 
-bool CommonSetup::setupImpl(UserCredentials userCredentials, NetworkConnectionControllerBase* networkConnectionController) {
-    UserCredentials credentialsInMemory = Storage::instance().readUserCredentials();
+namespace {
 
-    ESP_LOGI(TAG, "\nCredentials in memory: [%s,%s,%s,%s,%s,%s]",
-             credentialsInMemory.accountEmail.c_str(),
-             credentialsInMemory.accountUuid.c_str(),
-             credentialsInMemory.accountPassword.c_str(),
-             credentialsInMemory.deviceUuid.c_str(),
-             credentialsInMemory.deviceName.c_str(),
-             credentialsInMemory.deviceDescription.c_str());
+UserCredentials credentialsFromConfig(const croniot::CroniotConfig& cfg) {
+    return UserCredentials(
+        cfg.accountEmail,
+        cfg.accountUuid,
+        cfg.accountPassword,
+        cfg.deviceUuid,
+        "",
+        cfg.deviceName,
+        cfg.deviceDescription
+    );
+}
 
-    ESP_LOGI(TAG, "\nCredentials defined by user: [%s,%s,%s,%s,%s,%s]",
-             userCredentials.accountEmail.c_str(),
-             userCredentials.accountUuid.c_str(),
-             userCredentials.accountPassword.c_str(),
-             userCredentials.deviceUuid.c_str(),
-             userCredentials.deviceName.c_str(),
-             userCredentials.deviceDescription.c_str());
+void persistCredentialsIfChanged(const UserCredentials& desired) {
+    UserCredentials inMemory = Storage::instance().readUserCredentials();
 
-    if (credentialsInMemory.accountEmail != userCredentials.accountEmail ||
-        credentialsInMemory.accountUuid != userCredentials.accountUuid ||
-        credentialsInMemory.accountPassword != userCredentials.accountPassword ||
-        credentialsInMemory.deviceUuid != userCredentials.deviceUuid ||
-        credentialsInMemory.deviceName != userCredentials.deviceName) {
-
+    if (inMemory.accountEmail    != desired.accountEmail ||
+        inMemory.accountUuid     != desired.accountUuid ||
+        inMemory.accountPassword != desired.accountPassword ||
+        inMemory.deviceUuid      != desired.deviceUuid ||
+        inMemory.deviceName      != desired.deviceName) {
         ESP_LOGI(TAG, "Storing new credentials");
-
-        UserCredentials newCredentials = UserCredentials(
-            userCredentials.accountEmail, userCredentials.accountUuid,
-            userCredentials.accountPassword, userCredentials.deviceUuid,
-            "", userCredentials.deviceName, userCredentials.deviceDescription);
-
-        Storage::instance().saveUserCredentials(newCredentials);
+        Storage::instance().saveUserCredentials(desired);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+}
 
+}
 
-    connection::WifiConnectedCallback callback = [this](const std::string& ssid) {
-        ESP_LOGI("CommonSetup", ">>>>>>>>>>Connected to: %s", ssid.c_str());
+bool CommonSetup::setup(const croniot::CroniotConfig& config) {
+    using namespace croniot;
 
+    persistCredentialsIfChanged(credentialsFromConfig(config));
+
+    auto& bus = MessageBus::instance();
+    bus.setDeviceUuid(config.deviceUuid);
+
+    for (auto type : config.channels) {
+        switch (type) {
+            case ChannelType::Remote:
+                bus.addChannel(std::make_unique<RemoteChannel>(config.remote));
+                break;
+            case ChannelType::Ble:
+                bus.addChannel(std::make_unique<BleChannel>(config.deviceUuid, config.ble));
+                break;
+        }
+    }
+
+    return bus.startConnection([this]() {
         xTaskCreate(
             CommonSetup::authenticateWithServerTask,
             "authenticateWithServerTask",
@@ -51,29 +75,21 @@ bool CommonSetup::setupImpl(UserCredentials userCredentials, NetworkConnectionCo
             1,
             &this->authenticateWithServerTaskTaskHandle
         );
-    };
-
-    bool networkConnectionProviderInitialized = NetworkConnectionProvider::init(networkConnectionController, callback); //TODO no hace falta devolver bool, sino hay un callback
-    
-    return true;
+    });
 }
 
 void CommonSetup::authenticateWithServerTask(void* pvParameters) {
-    CommonSetup* self = static_cast<CommonSetup*>(pvParameters);
-
-
     bool authenticated = AuthenticationController::instance().init();
     ESP_LOGI(TAG, "\n\n\n###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
 
     CurrentDateTimeController::instance().run();
 
     if (authenticated) {
-        bool mqttInitialized = MqttProvider::get()->init();
-        if (mqttInitialized) {
+        if (croniot::MessageBus::instance().startMessaging()) {
             SensorsController::instance().init();
             TaskController::instance().init();
         } else {
-            ESP_LOGE(TAG, "Could not initialize MQTT...");
+            ESP_LOGE(TAG, "Could not start messaging channel");
         }
     }
 

@@ -12,7 +12,6 @@
 #include "TaskBase.h"
 #include "CurrentDateTimeController.h"
 #include "Storage.h"
-#include "network/mqtt/MqttProvider.h"
 #include "SimpleTaskData.h"
 #include "TaskProgressUpdate.h"
 #include "CommonConstants.h"
