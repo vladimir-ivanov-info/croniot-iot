@@ -42,6 +42,8 @@ struct CroniotConfig {
 
     struct BleCfg {
         std::string localName;
+        std::string password;
+        bool securityEnabled = false;
     } ble;
 };
 

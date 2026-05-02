@@ -21,6 +21,7 @@ public:
 
     bool startConnection(CommChannel::ConnectionReadyCallback onReady);
     bool startMessaging();
+    bool hasServerAuthChannel() const { return serverAuthChannel() != nullptr; }
 
     Result registerDevice(const std::string& jsonPayload);
     Result login(const std::string& jsonPayload);
@@ -36,7 +37,7 @@ public:
 private:
     MessageBus() = default;
 
-    CommChannel* serverAuthChannel();
+    CommChannel* serverAuthChannel() const;
 
     std::string deviceUuid_;
     std::vector<std::unique_ptr<CommChannel>> channels_;

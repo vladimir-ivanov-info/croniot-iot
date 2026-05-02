@@ -9,11 +9,11 @@ extern "C" {
 
 class MessageSensorData {
 public:
-    MessageSensorData(int sensorTypeId, const std::string& value);
+    MessageSensorData(int sensorTypeUid, const std::string& value);
     std::string toString() const;
 
 private:
-    int sensorTypeId;
+    int sensorTypeUid;
     std::string value;
 };
 

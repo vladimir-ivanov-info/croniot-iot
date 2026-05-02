@@ -15,7 +15,7 @@ void MessageBus::addChannel(std::unique_ptr<CommChannel> channel) {
     channels_.push_back(std::move(channel));
 }
 
-CommChannel* MessageBus::serverAuthChannel() {
+CommChannel* MessageBus::serverAuthChannel() const {
     for (auto& ch : channels_) {
         if (ch->supportsServerAuth()) return ch.get();
     }
@@ -27,11 +27,20 @@ bool MessageBus::startConnection(CommChannel::ConnectionReadyCallback onReady) {
         ESP_LOGE(TAG, "No channels configured");
         return false;
     }
+    // If no channel supports server auth (BLE-only), fire onReady from the first
+    // channel that connects so that sensors/tasks still get initialized.
+    const bool hasAuth = hasServerAuthChannel();
     bool anyOk = false;
+    bool callbackAssigned = false;
     for (auto& ch : channels_) {
-        // Authentication-ready callback should come from the server-auth channel only.
-        CommChannel::ConnectionReadyCallback callback =
-            ch->supportsServerAuth() ? onReady : CommChannel::ConnectionReadyCallback{};
+        CommChannel::ConnectionReadyCallback callback;
+        if (ch->supportsServerAuth()) {
+            callback = onReady;
+            callbackAssigned = true;
+        } else if (!hasAuth && !callbackAssigned) {
+            callback = onReady;
+            callbackAssigned = true;
+        }
         anyOk = ch->startConnection(callback) || anyOk;
     }
     return anyOk;

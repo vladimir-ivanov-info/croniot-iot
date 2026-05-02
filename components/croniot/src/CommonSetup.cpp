@@ -79,7 +79,13 @@ bool CommonSetup::setup(const croniot::CroniotConfig& config) {
 }
 
 void CommonSetup::authenticateWithServerTask(void* pvParameters) {
-    bool authenticated = AuthenticationController::instance().init();
+    bool authenticated;
+    if (croniot::MessageBus::instance().hasServerAuthChannel()) {
+        authenticated = AuthenticationController::instance().init();
+    } else {
+        authenticated = true;
+        ESP_LOGI(TAG, "No server-auth channel, skipping server authentication");
+    }
     ESP_LOGI(TAG, "\n\n\n###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
 
     CurrentDateTimeController::instance().run();
