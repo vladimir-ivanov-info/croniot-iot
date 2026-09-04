@@ -42,6 +42,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/MessageBus.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/RemoteChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannelLogic.cpp
 
     INCLUDE_DIRS
         src

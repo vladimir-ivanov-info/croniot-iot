@@ -34,6 +34,15 @@ public:
     void subscribeTaskCommand(int taskTypeUid, TaskBase* taskInstance);
     void subscribeTaskStateInfoSync(int taskTypeUid, TaskBase* taskInstance);
 
+    // Test-only: clears all registered channels and the device UUID so this
+    // process-wide singleton can be reused cleanly across independent test
+    // cases (see croniot/test_host/MessageBusRoutingTest.cpp). Never call
+    // this from production code.
+    void resetForTesting() {
+        channels_.clear();
+        deviceUuid_.clear();
+    }
+
 private:
     MessageBus() = default;
 

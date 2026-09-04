@@ -1,9 +1,11 @@
 #include "BleChannel.h"
+#include "BleChannelLogic.h"
 
 #include <cctype>
 #include <cstring>
 #include <memory>
 
+#include "esp_bt.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -208,6 +210,10 @@ int gapEvent(struct ble_gap_event* event, void* arg) {
             ESP_LOGI(TAG, "Connect status=%d", event->connect.status);
             if (event->connect.status == 0) {
                 self->setConnHandle(event->connect.conn_handle);
+                esp_ble_tx_power_set_enhanced(ESP_BLE_ENHANCED_PWR_TYPE_CONN,
+                                              event->connect.conn_handle,
+                                              ESP_PWR_LVL_P20);
+                                              //ESP_PWR_LVL_P9);
 
                 if (self->isSecurityEnabled()) {
                     int rc = ble_gap_security_initiate(event->connect.conn_handle);
@@ -327,18 +333,8 @@ BleChannel::BleChannel(const std::string& deviceUuid,
 }
 
 bool BleChannel::parseStaticPasskey(const std::string& password,
-                                    uint32_t& outPasskey) const {
-    if (password.size() != 6) return false;
-
-    uint32_t passkey = 0;
-    for (char c : password) {
-        if (!std::isdigit(static_cast<unsigned char>(c))) return false;
-        passkey = (passkey * 10) + static_cast<uint32_t>(c - '0');
-    }
-
-    if (passkey > 999999) return false;
-    outPasskey = passkey;
-    return true;
+                                    uint32_t& outPasskey) {
+    return BleChannelLogic::parseStaticPasskey(password, outPasskey);
 }
 
 bool BleChannel::isConnectionSecure(uint16_t connHandle) const {
@@ -387,11 +383,7 @@ void BleChannel::rebuildSchemaJson() {
 }
 
 uint32_t BleChannel::djb2Hash(const std::string& s) {
-    uint32_t hash = 5381;
-    for (unsigned char c : s) {
-        hash = ((hash << 5) + hash) + c;
-    }
-    return hash;
+    return BleChannelLogic::djb2Hash(s);
 }
 
 void BleChannel::onSyncCommandWrite(const std::string& payload) {
@@ -525,6 +517,10 @@ void BleChannel::onHostSync() {
 }
 
 void BleChannel::startAdvertising() {
+    //esp_ble_tx_power_set_enhanced(ESP_BLE_ENHANCED_PWR_TYPE_DEFAULT, 0, ESP_PWR_LVL_P9);
+    esp_ble_tx_power_set_enhanced(ESP_BLE_ENHANCED_PWR_TYPE_DEFAULT, 0, ESP_PWR_LVL_P20);
+    esp_ble_tx_power_set_enhanced(ESP_BLE_ENHANCED_PWR_TYPE_ADV,     0, ESP_PWR_LVL_P20);
+
     // Primary advertisement: flags + device name
     struct ble_hs_adv_fields fields = {};
     fields.flags                 = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;

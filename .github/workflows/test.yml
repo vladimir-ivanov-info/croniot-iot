@@ -1,0 +1,39 @@
+name: Host Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # Host-native pure-logic unit tests (BleChannelLogic, MessageBus routing
+  # against FakeCommChannel). Zero ESP-IDF/NimBLE/FreeRTOS toolchain -
+  # this is intentionally independent of croniot-watering-system or any
+  # other consumer repo.
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S components/croniot/test_host -B components/croniot/test_host/build
+
+      - name: Build
+        run: cmake --build components/croniot/test_host/build -j "$(nproc)"
+
+      - name: Run tests
+        run: ctest --test-dir components/croniot/test_host/build --output-on-failure
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Run cppcheck
+        # Non-blocking for now: expect noise against the untouched legacy
+        # tree on the first few runs.
+        run: |
+          cppcheck --enable=warning,performance,portability --inline-suppr \
+            -I components/croniot/src \
+            components/croniot/src 2>&1 | tee cppcheck-report.txt
