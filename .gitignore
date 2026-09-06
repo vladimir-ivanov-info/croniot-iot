@@ -7,6 +7,7 @@ managed_components/**
 .vscode/launch.json
 .vscode/ipch
 **/secrets.h
+components/croniot/test_host/build/
 /__pycache__/*
 compress_firmware.py
 library.json

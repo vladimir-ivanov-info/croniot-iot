@@ -67,11 +67,15 @@ public:
 
     static BleChannel* instance() { return s_instance_; }
 
+    // Pure, hardware-free helpers - exposed as public static so they're
+    // unit-testable on host without NimBLE/FreeRTOS (see
+    // croniot/test_host/BleChannelLogicTest.cpp).
+    static bool parseStaticPasskey(const std::string& password, uint32_t& outPasskey);
+    static uint32_t djb2Hash(const std::string& s);
+
 private:
-    bool parseStaticPasskey(const std::string& password, uint32_t& outPasskey) const;
     void rebuildDeviceInfoJson();
     void rebuildSchemaJson();
-    static uint32_t djb2Hash(const std::string& s);
     void runSchemaSync();
 
     static BleChannel* s_instance_;
