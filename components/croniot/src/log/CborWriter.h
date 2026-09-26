@@ -2,6 +2,7 @@
 #define CRONIOT_LOG_CBORWRITER_H
 
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
@@ -36,6 +37,17 @@ public:
 
     void writeBool(bool value) { buf_.push_back(value ? 0xF5 : 0xF4); }
     void writeNull() { buf_.push_back(0xF6); }
+
+    // Major type 7, additional info 27: IEEE 754 double-precision float
+    // (RFC 8949 §3.3). Added for sensor readings (plan §7.2's batch
+    // shape) - log records never needed a real number type, only
+    // integers and strings, until now.
+    void writeDouble(double value) {
+        buf_.push_back(0xFB);
+        uint64_t bits;
+        std::memcpy(&bits, &value, sizeof(bits));
+        appendBigEndian(bits, 8);
+    }
 
     const std::vector<uint8_t>& bytes() const { return buf_; }
 

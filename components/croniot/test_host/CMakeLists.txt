@@ -54,6 +54,8 @@ add_executable(host_tests
     RetryPolicyTest.cpp
     UplinkSchedulerTest.cpp
     BatchEnvelopeTest.cpp
+    SensorReportBufferTest.cpp
+    SensorBatchEncoderTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE
