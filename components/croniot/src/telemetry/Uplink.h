@@ -25,9 +25,11 @@ namespace croniot::telemetry {
 // cursor/ack/retry machinery, one batch at a time, and gets "events
 // first" purely from UplinkScheduler's priority order rather than a
 // second, parallel fire-and-forget path - simpler, and avoids splitting
-// the one dedup/ack contract in two. Stream::Data is included in the
-// scheduler for uniformity but never actually sent yet - its wire topic
-// (`/iot_to_server/sensor_batch/<uuid>`) doesn't exist until Tanda F.
+// the one dedup/ack contract in two. Stream::Data drains through this
+// exact same machinery too (plan §7.2/§12.6) - its wire topic
+// (`/iot_to_server/sensor_batch/<uuid>`) is real now, but nothing on
+// this path ever decodes a Data frame's payload; it's opaque bytes to
+// Uplink either way, same as Logs/Events records are.
 class Uplink {
 public:
     static Uplink& instance();

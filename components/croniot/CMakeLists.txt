@@ -19,6 +19,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parameters/StatefulParameterSwitch.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parameters/StatefulParameterSlider.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/Sensor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/SensorsController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/SensorType.cpp
 

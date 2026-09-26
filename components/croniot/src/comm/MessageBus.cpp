@@ -123,6 +123,12 @@ Result MessageBus::publishDeviceEvent(const std::string& cbor) {
     return ch->publishDeviceEvent(deviceUuid_, cbor);
 }
 
+Result MessageBus::publishSensorBatch(const std::string& cbor) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return Result(false, "No channels");
+    return ch->publishSensorBatch(deviceUuid_, cbor);
+}
+
 Result MessageBus::publishStatus(const std::string& jsonPayload, bool retain) {
     auto* ch = preferUplinkChannel();
     if (!ch) return Result(false, "No channels");

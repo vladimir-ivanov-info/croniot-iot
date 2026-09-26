@@ -49,6 +49,13 @@ public:
     virtual Result publishLogBatch(const std::string& deviceUuid, const std::string& cbor) = 0;
     virtual Result publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) = 0;
 
+    // Batched sensor readings (plan §7.2/§12.6 PR18). `cbor` is a
+    // pre-built Sensors/SensorBatchEncoder.h payload, drained through
+    // the exact same Journal Data-stream/Uplink ack/retry pipeline as
+    // publishLogBatch/publishDeviceEvent above - this is its wire
+    // delivery, not a separate protocol.
+    virtual Result publishSensorBatch(const std::string& deviceUuid, const std::string& cbor) = 0;
+
     // Retained status/birth publish (plan §4: LWT sets "offline",
     // this sets the online/birth counterpart - `{boot, reset_reason, fw}`
     // as the jsonPayload).

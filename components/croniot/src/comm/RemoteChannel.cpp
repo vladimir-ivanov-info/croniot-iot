@@ -28,6 +28,7 @@ const std::string ROUTE_REGISTER_TASK_TYPE   = "/api/register_task_type";
 // this channel's own retained "online"/birth publish.
 std::string topicLogs(const std::string& deviceUuid)   { return "/iot_to_server/logs/" + deviceUuid; }
 std::string topicEvents(const std::string& deviceUuid) { return "/iot_to_server/events/" + deviceUuid; }
+std::string topicSensorBatch(const std::string& deviceUuid) { return "/iot_to_server/sensor_batch/" + deviceUuid; }
 std::string topicStatus(const std::string& deviceUuid) { return "/iot_to_server/status/" + deviceUuid; }
 std::string topicAck(const std::string& deviceUuid)    { return "/server/" + deviceUuid + "/ack"; }
 std::string topicLogConfig(const std::string& deviceUuid) { return "/server/" + deviceUuid + "/log_config"; }
@@ -121,6 +122,15 @@ Result RemoteChannel::publishLogBatch(const std::string& deviceUuid, const std::
 
 Result RemoteChannel::publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) {
     return mqtt_->publishWithOptions(topicEvents(deviceUuid), cbor, /*qos=*/1, /*retain=*/false);
+}
+
+Result RemoteChannel::publishSensorBatch(const std::string& deviceUuid, const std::string& cbor) {
+    // Same QoS 1 reasoning as publishLogBatch above - dedup is by
+    // (device, boot, stream, seq) via the Journal cursor, not transport
+    // QoS, and this is a batch already (not the legacy per-reading QoS
+    // 2 publishSensorData path, which stays untouched for Immediate-
+    // policy sensors).
+    return mqtt_->publishWithOptions(topicSensorBatch(deviceUuid), cbor, /*qos=*/1, /*retain=*/false);
 }
 
 Result RemoteChannel::publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,

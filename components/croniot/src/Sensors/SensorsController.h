@@ -27,6 +27,16 @@ class SensorsController {
         void uninit();
 
     private:
+        // Drives Sensor::maybeFlush() for every registered sensor -
+        // plan §7.2/§12.6: a sensor buffering under ReportPolicy::Batch
+        // needs *something* checking "is it time yet" periodically,
+        // since SensorReportBuffer itself has no timer (same explicit-
+        // nowMs determinism as LevelResolver/JournalCursor elsewhere in
+        // this SDK - see SensorReportBuffer.h). A sensor that never
+        // called setReporting() has nothing buffered, so this is a
+        // no-op sweep for it every tick.
+        static void flushTask(void* arg);
+
         std::list<SensorType*> sensorTypes;
         std::list<Sensor*> sensors;
 

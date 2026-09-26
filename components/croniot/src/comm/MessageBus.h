@@ -41,6 +41,7 @@ public:
     // these five all go through that same one channel.
     Result publishLogBatch(const std::string& cbor);
     Result publishDeviceEvent(const std::string& cbor);
+    Result publishSensorBatch(const std::string& cbor);
     Result publishStatus(const std::string& jsonPayload, bool retain);
     void subscribeAck(std::function<void(const std::string&)> callback);
     void subscribeLogConfig(std::function<void(const std::string&)> callback);

@@ -46,6 +46,7 @@ public:
     // reserved, behavior deferred" pattern as Sink::Sd in Log.h.
     Result publishLogBatch(const std::string& deviceUuid, const std::string& cbor) override;
     Result publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) override;
+    Result publishSensorBatch(const std::string& deviceUuid, const std::string& cbor) override;
     Result publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
                           bool retain) override;
     void subscribeAck(const std::string& deviceUuid,
