@@ -77,9 +77,12 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
             std::string message = taskProgressUpdate->toJson();
 
             int64_t t1 = esp_timer_get_time();
-            croniot::MessageBus::instance().publishTaskProgressUpdate(message);
+            Result publishResult = croniot::MessageBus::instance().publishTaskProgressUpdate(message);
             int64_t t2 = esp_timer_get_time();
 
+            if (!publishResult.success) {
+                ESP_LOGW("TaskController", "publishTaskProgressUpdate failed: %s", publishResult.message.c_str());
+            }
             ESP_LOGW("TaskController", "TIMING: toJson=%lldus publish=%lldus total=%lldus | %s",
                      (t1-t0), (t2-t1), (t2-t0), message.c_str());
         }

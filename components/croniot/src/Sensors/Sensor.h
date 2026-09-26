@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "esp_log.h"
 #include "Messages/MessageSensorData.h"
 #include "comm/MessageBus.h"
 
@@ -13,7 +14,10 @@ public:
 protected:
     void sendSensorData(int sensorUid, const std::string& sensorValue) {
         MessageSensorData messageSensorData(sensorUid, sensorValue);
-        croniot::MessageBus::instance().publishSensorData(sensorUid, messageSensorData.toString());
+        Result result = croniot::MessageBus::instance().publishSensorData(sensorUid, messageSensorData.toString());
+        if (!result.success) {
+            ESP_LOGW("Sensor", "publishSensorData(%d) failed: %s", sensorUid, result.message.c_str());
+        }
     }
 };
 
