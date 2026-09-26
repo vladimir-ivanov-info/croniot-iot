@@ -60,7 +60,7 @@ public:
 
 private:
     LogRecord makeFlushRecord() const {
-        LogRecord record;
+        LogRecord record{};
         record.level = lastLevel_;
         record.setTag(lastTag_.c_str());
         record.setMessage(lastMessage_.c_str());

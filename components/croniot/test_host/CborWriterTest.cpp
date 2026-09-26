@@ -24,7 +24,7 @@ std::vector<uint8_t> hexToBytes(const char* hex) {
 }  // namespace
 
 TEST(CborWriter, LogRecordMatchesGoldenBytes) {
-    LogRecord record;
+    LogRecord record{};
     record.seq = 1234;
     record.uptimeMs = 5678;
     record.level = Level::Error;

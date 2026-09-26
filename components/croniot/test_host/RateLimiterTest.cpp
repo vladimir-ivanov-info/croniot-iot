@@ -8,7 +8,7 @@ using croniot::log::RateLimiter;
 
 namespace {
 LogRecord makeRecord(Level level, const char* tag, const char* message) {
-    LogRecord record;
+    LogRecord record{};
     record.level = level;
     record.setTag(tag);
     record.setMessage(message);
