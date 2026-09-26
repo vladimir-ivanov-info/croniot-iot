@@ -112,7 +112,7 @@ void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t b
 
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "✅ MQTT connected");
+            ESP_LOGI(TAG, "MQTT connected");
             controller->initialized = true;
             controller->reconnecting = false;
 
