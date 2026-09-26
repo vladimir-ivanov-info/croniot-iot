@@ -44,6 +44,11 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannelLogic.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LineParser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Span.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Context.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/StateMachine.cpp
+
     INCLUDE_DIRS
         src
         src/comm
@@ -56,6 +61,7 @@ idf_component_register(
         src/network/http
         src/network/mqtt
         src/network/sim7600
+        src/log
 
     REQUIRES
         nvs_flash

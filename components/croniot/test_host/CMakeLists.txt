@@ -27,8 +27,24 @@ add_executable(host_tests
     ${CRONIOT_SRC}/comm/BleChannelLogic.cpp
     ${CRONIOT_SRC}/comm/MessageBus.cpp
 
+    ${CRONIOT_SRC}/log/LineParser.cpp
+    ${CRONIOT_SRC}/log/Span.cpp
+    ${CRONIOT_SRC}/log/Context.cpp
+    ${CRONIOT_SRC}/log/StateMachine.cpp
+
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
+
+    LevelResolverTest.cpp
+    LineParserTest.cpp
+    RingBufferTest.cpp
+    RateLimiterTest.cpp
+    RedactorTest.cpp
+    CborWriterTest.cpp
+    SpanTest.cpp
+    ContextTest.cpp
+    CountersTest.cpp
+    StateMachineTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE
