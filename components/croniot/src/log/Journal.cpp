@@ -412,6 +412,32 @@ uint32_t Journal::firstUnackedSeq(Stream stream) const {
     return cursor.hasAck() ? cursor.ackedSeq() + 1 : 0;
 }
 
+std::optional<Journal::PartitionUsage> Journal::partitionUsage(Stream stream) const {
+    StreamState& state = const_cast<Journal*>(this)->stateFor(stream);
+    if (!state.mounted) return std::nullopt;
+    size_t total = 0, used = 0;
+    if (esp_littlefs_info(state.partitionLabel, &total, &used) != ESP_OK) return std::nullopt;
+    return PartitionUsage{total, used};
+}
+
+uint64_t Journal::partitionLifetimeBytes(const char* partitionLabel) const {
+    uint64_t sum = 0;
+    for (Stream s : {Stream::Logs, Stream::Events, Stream::Data}) {
+        if (std::strcmp(const_cast<Journal*>(this)->stateFor(s).partitionLabel, partitionLabel) == 0) {
+            sum += writeAccounting_.lifetimeBytes(s);
+        }
+    }
+    return sum;
+}
+
+double Journal::estimatedWearPercent(Stream stream, uint32_t enduranceCycles) const {
+    auto usage = partitionUsage(stream);
+    if (!usage) return -1.0;
+    const char* label = const_cast<Journal*>(this)->stateFor(stream).partitionLabel;
+    return writeAccounting_.estimatedWearPercent(partitionLifetimeBytes(label), usage->totalBytes,
+                                                  enduranceCycles);
+}
+
 std::optional<Journal::RawBatch> Journal::readFrom(Stream stream, uint32_t fromSeqInclusive,
                                                      size_t maxBytes, size_t maxRecords) {
     StreamState& state = stateFor(stream);

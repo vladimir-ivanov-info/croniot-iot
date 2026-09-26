@@ -164,6 +164,11 @@ void Uplink::onAck(const std::string& json) {
     }
 }
 
+uint32_t Uplink::currentAttempt(croniot::log::Stream stream) const {
+    const InFlightBatch& slot = inFlight_[index(stream)];
+    return slot.active ? slot.attempt : 0;
+}
+
 void Uplink::serviceOnce() {
     std::vector<StreamBacklog> backlogs;
     uint64_t now = nowMs();
