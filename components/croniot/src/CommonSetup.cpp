@@ -14,6 +14,7 @@
 #include "comm/BleChannel.h"
 #include "comm/MessageBus.h"
 #include "comm/RemoteChannel.h"
+#include "log/Log.h"
 #include "telemetry/Uplink.h"
 
 static const char* TAG = "CommonSetup";
@@ -101,6 +102,15 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
             // Journal long before this, on purpose, so nothing captured
             // before authentication is lost (plan §10's two-step init).
             croniot::telemetry::Uplink::instance().start();
+
+            // Remote log-level control (plan §11.5/§12.5 PR15's device
+            // side): the server publishes retained JSON on
+            // /server/<uuid>/log_config, this device applies it via the
+            // exact same LevelResolver "remote" tier setLevel()/init()
+            // already feed. Subscribed here, not from Log::init(), for
+            // the same reason as Uplink::start() above.
+            croniot::MessageBus::instance().subscribeLogConfig(
+                [](const std::string& json) { croniot::log::applyRemoteConfig(json); });
         } else {
             ESP_LOGE(TAG, "Could not start messaging channel");
         }
