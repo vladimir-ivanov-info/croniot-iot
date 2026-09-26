@@ -48,6 +48,12 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Span.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Context.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/StateMachine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/NoinitRing.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/RtcCriticalStore.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogRouter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogTask.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/ConsoleSink.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Log.cpp
 
     INCLUDE_DIRS
         src

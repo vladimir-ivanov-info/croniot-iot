@@ -1,0 +1,47 @@
+menu "Croniot logging (croniot::log)"
+
+    config CRONIOT_LOG_ENABLE
+        bool "Enable croniot::log (esp_log hook, RAM/RTC black box, drain task)"
+        default y
+        help
+            Kill switch for the whole croniot::log platform layer. When
+            disabled, croniot::log::init() installs no esp_log hook and
+            creates no drain task - ESP-IDF's own default logging behavior
+            is completely untouched.
+
+    config CRONIOT_LOG_RAM_RECORDS
+        int "RAM ring capacity (records)"
+        default 32
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Number of LogRecord entries kept in the `.noinit` RAM ring
+            (survives esp_restart()/panic/watchdog resets - NOT deep sleep
+            or power loss). sizeof(LogRecord) is ~240 bytes on this
+            target, so the default of 32 costs roughly 7.7 KB of HP SRAM -
+            a deliberately modest slice of the ESP32-C6's ~512 KB, given
+            this buffer competes with every other task's stack and the
+            network stack's own buffers.
+
+    config CRONIOT_LOG_RTC_RECORDS
+        int "RTC critical store capacity (records)"
+        default 6
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Number of LogRecord entries kept in RTC memory
+            (RTC_NOINIT_ATTR), written only for Level::Error lines and
+            croniot::log::event() calls - not every record. RTC memory is
+            tiny and shared with other uses (e.g. Wi-Fi calibration data),
+            so this targets roughly 1-2 KB: 6 records at ~240 bytes each
+            is about 1.4 KB.
+
+    config CRONIOT_LOG_TASK_STACK_SIZE
+        int "croniot_log drain task stack size (bytes)"
+        default 4096
+        depends on CRONIOT_LOG_ENABLE
+
+    config CRONIOT_LOG_TASK_PRIORITY
+        int "croniot_log drain task priority"
+        default 1
+        depends on CRONIOT_LOG_ENABLE
+
+endmenu
