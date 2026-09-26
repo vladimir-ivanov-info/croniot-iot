@@ -34,6 +34,13 @@ public:
     static void setConsoleEnabled(bool enabled);
     static void setConsoleLevel(Level level);
 
+    // Same "applied on every drained record" contract as the console
+    // pair above, but gating a Journal::appendLog() call (see Journal.h)
+    // instead of a ConsoleSink::write() - PR9's Sink::Flash actually does
+    // something now.
+    static void setFlashEnabled(bool enabled);
+    static void setFlashLevel(Level level);
+
 private:
     static void run(void* arg);
 };
