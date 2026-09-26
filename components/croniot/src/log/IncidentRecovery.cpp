@@ -1,5 +1,6 @@
 #include "IncidentRecovery.h"
 
+#include <cinttypes>
 #include <cstdio>
 
 #include "esp_core_dump.h"
@@ -59,7 +60,14 @@ void IncidentRecovery::run() {
     summary.cause = toResetCause(esp_reset_reason());
     summary.recoveredRingRecords = NoinitRing::size();
     summary.recoveredRtcRecords = RtcCriticalStore::count();
+#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
     summary.coredumpPresent = esp_core_dump_image_check() == ESP_OK;
+#else
+    // esp_core_dump_image_check() is only defined when coredump-to-flash is
+    // compiled in (see core_dump_flash.c). With it disabled there is no
+    // stored coredump to check for.
+    summary.coredumpPresent = false;
+#endif
 
     if (!shouldRaiseIncident(summary)) return;
 
@@ -70,14 +78,15 @@ void IncidentRecovery::run() {
         summary.coredumpPresent && esp_core_dump_get_summary(&coreSummary) == ESP_OK;
     if (haveCoreSummary) {
         std::snprintf(message, sizeof(message),
-                      "cause=%s ring_records=%u rtc_records=%u coredump=true "
-                      "task=%s pc=0x%08x",
+                      "cause=%s ring_records=%" PRIu32 " rtc_records=%" PRIu32 " coredump=true "
+                      "task=%s pc=0x%08" PRIx32,
                       toString(summary.cause), summary.recoveredRingRecords,
                       summary.recoveredRtcRecords, coreSummary.exc_task, coreSummary.exc_pc);
     } else
 #endif
     {
-        std::snprintf(message, sizeof(message), "cause=%s ring_records=%u rtc_records=%u coredump=%s",
+        std::snprintf(message, sizeof(message),
+                      "cause=%s ring_records=%" PRIu32 " rtc_records=%" PRIu32 " coredump=%s",
                       toString(summary.cause), summary.recoveredRingRecords,
                       summary.recoveredRtcRecords, summary.coredumpPresent ? "true" : "false");
     }

@@ -1,5 +1,6 @@
 #include "Journal.h"
 
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
@@ -220,7 +221,7 @@ void Journal::appendToStream(StreamState& state, Stream stream, const LogRecord&
     if (!state.openFile) {
         uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
         char name[64];
-        std::snprintf(name, sizeof(name), "%s/%s_%05u.cbor", state.mountPath, state.filePrefix,
+        std::snprintf(name, sizeof(name), "%s/%s_%05" PRIu32 ".cbor", state.mountPath, state.filePrefix,
                       openId);
         state.openFile = fopen(name, "ab");
         if (!state.openFile) {
@@ -330,7 +331,7 @@ void Journal::reclaimMount(StreamState& state, const char* partitionLabel,
             if (state.segments[i].segmentId != deletedId) continue;
 
             char name[64];
-            std::snprintf(name, sizeof(name), "%s/%s_%05u.cbor", state.mountPath, state.filePrefix,
+            std::snprintf(name, sizeof(name), "%s/%s_%05" PRIu32 ".cbor", state.mountPath, state.filePrefix,
                           deletedId);
             std::remove(name);
 
@@ -340,7 +341,7 @@ void Journal::reclaimMount(StreamState& state, const char* partitionLabel,
                 gapEvent.setTag("log_gap");
                 gapEvent.level = Level::Warn;
                 char msg[96];
-                std::snprintf(msg, sizeof(msg), "stream=%s from=%u to=%u count=%u",
+                std::snprintf(msg, sizeof(msg), "stream=%s from=%" PRIu32 " to=%" PRIu32 " count=%" PRIu32,
                               toString(gap->stream), gap->fromSeq, gap->toSeq, gap->count);
                 gapEvent.setMessage(msg);
                 appendEvent(gapEvent);
