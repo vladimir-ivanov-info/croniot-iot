@@ -18,8 +18,12 @@ public:
 
     bool init() override;
     Result publish(const std::string& topic, const std::string& message) override;
+    Result publishWithOptions(const std::string& topic, const std::string& message, int qos,
+                               bool retain) override;
     void registerCallback(const std::string& topic, TaskBase* taskInstance) override;
     void registerCallbackTaskStateInfoSync(const std::string& topic, TaskBase* taskInstance) override;
+    void registerRawCallback(const std::string& topic,
+                              std::function<void(const std::string&)> callback) override;
 
 private:
     esp_mqtt_client_handle_t mqttClient = nullptr;
@@ -27,6 +31,7 @@ private:
 
     std::map<std::string, TaskBase*> topicTaskMap;
     std::map<std::string, TaskBase*> topicTaskStateInfoSyncMap;
+    std::map<std::string, std::function<void(const std::string&)>> topicRawCallbackMap;
 
     static void mqttEventHandler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data);
     void handleMessage(const std::string& topic, const std::string& payload);

@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 
 #include "CborWriter.h"
+#include "FrameCodec.h"
 #include "SpaceReclaimer.h"
 
 namespace croniot::log {
@@ -220,12 +221,10 @@ void Journal::appendToStream(StreamState& state, Stream stream, const LogRecord&
 
     if (!state.openFile) {
         uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
-        char name[64];
-        std::snprintf(name, sizeof(name), "%s/%s_%05" PRIu32 ".cbor", state.mountPath, state.filePrefix,
-                      openId);
-        state.openFile = fopen(name, "ab");
+        std::string name = segmentPath(state, openId);
+        state.openFile = fopen(name.c_str(), "ab");
         if (!state.openFile) {
-            ESP_LOGW(TAG, "could not open segment '%s'", name);
+            ESP_LOGW(TAG, "could not open segment '%s'", name.c_str());
             return;
         }
     }
@@ -330,10 +329,7 @@ void Journal::reclaimMount(StreamState& state, const char* partitionLabel,
         for (uint32_t i = 0; i < state.segmentCount; ++i) {
             if (state.segments[i].segmentId != deletedId) continue;
 
-            char name[64];
-            std::snprintf(name, sizeof(name), "%s/%s_%05" PRIu32 ".cbor", state.mountPath, state.filePrefix,
-                          deletedId);
-            std::remove(name);
+            std::remove(segmentPath(state, deletedId).c_str());
 
             auto gap = state.cursor.reclaimTo(state.segments[i].newestSeq + 1, "space_pressure");
             if (gap) {
@@ -382,30 +378,104 @@ void Journal::maybeReclaim() {
     // not space pressure response.
 }
 
+Journal::StreamState& Journal::stateFor(Stream stream) {
+    return stream == Stream::Data ? dataState_ : stream == Stream::Events ? eventsState_ : logsState_;
+}
+
+std::string Journal::segmentPath(const StreamState& state, uint32_t segmentId) {
+    char name[64];
+    std::snprintf(name, sizeof(name), "%s/%s_%05" PRIu32 ".cbor", state.mountPath, state.filePrefix,
+                  segmentId);
+    return name;
+}
+
 void Journal::ack(Stream stream, uint32_t upToSeqInclusive) {
-    StreamState& state = stream == Stream::Data ? dataState_
-                          : stream == Stream::Events ? eventsState_
-                                                       : logsState_;
+    StreamState& state = stateFor(stream);
     state.cursor.ack(upToSeqInclusive);
     saveIndex(state);
 }
 
 bool Journal::streamAvailable(Stream stream) const {
-    const StreamState& state = stream == Stream::Data ? dataState_
-                                : stream == Stream::Events ? eventsState_
-                                                             : logsState_;
-    return state.mounted;
+    return const_cast<Journal*>(this)->stateFor(stream).mounted;
 }
 
 uint32_t Journal::nextSeq(Stream stream) const {
-    const StreamState& state = stream == Stream::Data ? dataState_
-                                : stream == Stream::Events ? eventsState_
-                                                             : logsState_;
-    return state.cursor.nextSeq();
+    return const_cast<Journal*>(this)->stateFor(stream).cursor.nextSeq();
 }
 
 uint64_t Journal::lifetimeBytesWritten(Stream stream) const {
     return writeAccounting_.lifetimeBytes(stream);
+}
+
+uint32_t Journal::firstUnackedSeq(Stream stream) const {
+    const JournalCursor& cursor = const_cast<Journal*>(this)->stateFor(stream).cursor;
+    return cursor.hasAck() ? cursor.ackedSeq() + 1 : 0;
+}
+
+std::optional<Journal::RawBatch> Journal::readFrom(Stream stream, uint32_t fromSeqInclusive,
+                                                     size_t maxBytes, size_t maxRecords) {
+    StreamState& state = stateFor(stream);
+    if (!state.mounted || maxRecords == 0) return std::nullopt;
+
+    RawBatch batch;
+    bool started = false;
+    uint32_t nextWantedSeq = fromSeqInclusive;
+
+    for (uint32_t i = 0; i < state.segmentCount; ++i) {
+        const SegmentRecord& segment = state.segments[i];
+        if (segment.sizeBytes == 0) continue;             // nothing written here yet
+        if (segment.newestSeq < nextWantedSeq) continue;  // entirely already consumed/before what we want
+
+        std::string path = segmentPath(state, segment.segmentId);
+        FILE* file = fopen(path.c_str(), "rb");
+        if (!file) {
+            ESP_LOGW(TAG, "could not open segment '%s' for reading", path.c_str());
+            break;  // stop rather than silently skip a gap in the middle of a batch
+        }
+        std::vector<uint8_t> fileBytes;
+        uint8_t chunk[512];
+        size_t got;
+        while ((got = fread(chunk, 1, sizeof(chunk), file)) > 0) {
+            fileBytes.insert(fileBytes.end(), chunk, chunk + got);
+        }
+        fclose(file);
+
+        // `segment.oldestSeq` is the seq of the first record physically
+        // in this file (set when the segment was created - see
+        // rotateIfNeeded()/loadIndex()). Walking frames from byte 0 and
+        // skipping any still below `nextWantedSeq` also naturally
+        // implements the "clamp up if reclamation already deleted
+        // earlier data" behavior documented on readFrom() in Journal.h:
+        // if `nextWantedSeq` is below `segment.oldestSeq`, `seq` starts
+        // already at-or-above it, so nothing gets skipped.
+        size_t offset = 0, frameStart = 0, frameLen = 0;
+        uint32_t seq = segment.oldestSeq;
+        while (FrameCodec::readNextFrame(fileBytes.data(), fileBytes.size(), offset, frameStart, frameLen)) {
+            size_t frameAbsStart = frameStart - 2;  // back up over the 2-byte length prefix
+            size_t frameTotalLen = 2 + frameLen;
+
+            if (seq < nextWantedSeq) {
+                ++seq;
+                continue;
+            }
+            if (batch.count >= maxRecords || batch.frames.size() >= maxBytes) break;
+
+            if (!started) {
+                batch.firstSeq = seq;
+                started = true;
+            }
+            batch.frames.insert(batch.frames.end(), fileBytes.begin() + static_cast<long>(frameAbsStart),
+                                 fileBytes.begin() + static_cast<long>(frameAbsStart + frameTotalLen));
+            ++batch.count;
+            ++seq;
+        }
+        nextWantedSeq = seq;
+
+        if (batch.count >= maxRecords || batch.frames.size() >= maxBytes) break;
+    }
+
+    if (!started) return std::nullopt;
+    return batch;
 }
 
 }  // namespace croniot::log

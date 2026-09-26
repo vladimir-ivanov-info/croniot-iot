@@ -56,7 +56,10 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/SpaceReclaimer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Journal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/IncidentRecovery.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/BootCounter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Log.cpp
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry/Uplink.cpp
 
     INCLUDE_DIRS
         src
@@ -71,6 +74,7 @@ idf_component_register(
         src/network/mqtt
         src/network/sim7600
         src/log
+        src/telemetry
 
     REQUIRES
         nvs_flash

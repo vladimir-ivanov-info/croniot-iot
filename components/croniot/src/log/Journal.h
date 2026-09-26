@@ -3,6 +3,9 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
 #include "JournalCursor.h"
 #include "JournalTypes.h"
@@ -92,9 +95,36 @@ public:
     // against the final shape without another Journal change.
     void ack(Stream stream, uint32_t upToSeqInclusive);
 
+    struct RawBatch {
+        uint32_t firstSeq = 0;
+        uint32_t count = 0;
+        std::vector<uint8_t> frames;  // `count` raw, still-length-prefixed frames, concatenated verbatim
+    };
+
+    // Reads up to `maxRecords` records (capped at `maxBytes` of raw frame
+    // data, prefixes included) starting at `fromSeqInclusive`, for the
+    // uplink to send on (see telemetry/Uplink.cpp) - never decodes a
+    // single one (see FrameCodec.h). `fromSeqInclusive` is clamped up to
+    // whatever is actually still on disk: if the caller asks for a seq
+    // that space reclamation already deleted, this starts from the
+    // oldest surviving record instead (the resulting gap was already
+    // reported via a GapMarker event when it happened - see
+    // reclaimMount() - this just doesn't invent a *second*, silent one
+    // by pretending deleted data is still there). Returns nullopt if the
+    // stream isn't mounted or has nothing at or after `fromSeqInclusive`.
+    std::optional<RawBatch> readFrom(Stream stream, uint32_t fromSeqInclusive, size_t maxBytes,
+                                      size_t maxRecords);
+
     bool streamAvailable(Stream stream) const;
     uint32_t nextSeq(Stream stream) const;
     uint64_t lifetimeBytesWritten(Stream stream) const;
+
+    // Where the uplink should resume sending from: one past the highest
+    // acked seq, or 0 if nothing has ever been acked (including "no
+    // server has ever been contacted yet"). Exposes exactly the cursor
+    // state readFrom()'s caller needs without exposing JournalCursor
+    // itself outside this class.
+    uint32_t firstUnackedSeq(Stream stream) const;
 
     // Public so Journal.cpp's on-disk IndexFileFormat (an implementation
     // detail of that file, not exposed here) can size its segment array
@@ -129,6 +159,8 @@ private:
     void rotateIfNeeded(StreamState& state, Stream stream);
     void reclaimMount(StreamState& state, const char* partitionLabel,
                        uint64_t retentionSeconds);
+    static std::string segmentPath(const StreamState& state, uint32_t segmentId);
+    StreamState& stateFor(Stream stream);
 
     StreamState logsState_;
     StreamState eventsState_;

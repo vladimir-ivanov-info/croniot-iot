@@ -6,6 +6,7 @@
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
+#include "BootCounter.h"
 #include "IncidentRecovery.h"
 #include "Journal.h"
 #include "LevelResolver.h"
@@ -101,6 +102,7 @@ void recomputeEspLogLevels() {
 }  // namespace
 
 void init(const LogConfig& config) {
+    BootCounter::current();  // establishes the canonical bootId for this boot up front; see BootCounter.h
     g_config = config;
     g_resolver.setCodeDefault(config.capture);
     for (const auto& [tag, level] : config.tags) {
