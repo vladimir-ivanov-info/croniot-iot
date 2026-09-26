@@ -24,6 +24,9 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 
+// Delayed reconnect (no blocking inside the WiFi event handler)
+#include "esp_timer.h"
+
 #include "ConnectionTypes.h"
 
 static const char* TAG_WIFI = "WIFI_CTRL";
@@ -48,6 +51,14 @@ private:
     volatile bool wifiConnected = false;
     volatile bool authInitDone = false;
     bool taskCtrlInitDone = false;
+
+    // Reconnect-with-backoff state (see wifiEventHandler). A disconnect never
+    // aborts the device; it schedules esp_wifi_connect() again after a delay
+    // that grows with consecutive failures, so a wrong password or a missing
+    // AP doesn't turn into a tight retry loop.
+    int reconnectAttempt = 0;
+    esp_timer_handle_t reconnectTimer = nullptr;
+    static void reconnectTimerCallback(void* arg);
 
     static void wifiEventHandler(void* arg, esp_event_base_t base, int32_t id, void* data);
     void setWifiConnected(bool connected);
