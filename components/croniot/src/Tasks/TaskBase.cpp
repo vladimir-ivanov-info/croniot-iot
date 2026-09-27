@@ -37,7 +37,7 @@ void TaskBase::enqueueMessage(SimpleTaskData& taskData){
     }
 
     UBaseType_t waiting = uxQueueMessagesWaiting(messageQueue);
-    ESP_LOGW(TAG, "TIMING: enqueueMessage at %lld (queue depth: %u)", esp_timer_get_time(), waiting);
+    ESP_LOGD(TAG, "TIMING: enqueueMessage at %lld (queue depth: %u)", esp_timer_get_time(), waiting);
     if (xQueueSend(messageQueue, &taskDataCopy, pdMS_TO_TICKS(100)) != pdPASS) {
         ESP_LOGE(TAG, "Queue FULL! depth=%u, dropping message.", waiting);
         delete taskDataCopy;

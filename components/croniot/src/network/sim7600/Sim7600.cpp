@@ -53,7 +53,7 @@ size_t Sim7600::uartRead(char* buf, size_t len, uint32_t timeoutMs) {
 }
 
 bool Sim7600::init() {
-    ESP_LOGI(TAG, "🔌 Inicializando SIM7600...");
+    ESP_LOGI(TAG, "Inicializando SIM7600...");
     initialized = false;
 
     // prueba AT sin reset
@@ -64,7 +64,7 @@ bool Sim7600::init() {
         vTaskDelay(pdMS_TO_TICKS(2000));
         uartWrite("AT");
         if (getResponse(2000).find("OK") == std::string::npos) {
-            ESP_LOGE(TAG, "❌ No se recuperó SIM7600 tras CRESET.");
+            ESP_LOGE(TAG, "No se recuperó SIM7600 tras CRESET.");
             return false;
         }
     }
@@ -77,30 +77,30 @@ bool Sim7600::init() {
         uartWrite("AT+CPIN=\"" + SIM_PIN_EXTERN + "\"");
         resp = getResponse(2000);
         if (resp.find("OK") == std::string::npos) {
-            ESP_LOGE(TAG, "❌ PIN incorrecto.");
+            ESP_LOGE(TAG, "PIN incorrecto.");
             return false;
         }
     } else if (cpin != OK && cpin != RDY) {
-        ESP_LOGE(TAG, "❌ Estado SIM desconocido: %s", resp.c_str());
+        ESP_LOGE(TAG, "Estado SIM desconocido: %s", resp.c_str());
         return false;
     }
 
     // configurar APN
     uartWrite("AT+CGDCONT=1,\"IP\",\"orangeworld\"");
     if (getResponse(2000).find("OK") == std::string::npos) {
-        ESP_LOGE(TAG, "❌ Error en APN");
+        ESP_LOGE(TAG, "Error en APN");
         return false;
     }
 
     // abrir red
     uartWrite("AT+NETOPEN");
     if (getResponse(5000).find("OK") == std::string::npos) {
-        ESP_LOGE(TAG, "❌ NETOPEN falló");
+        ESP_LOGE(TAG, "NETOPEN falló");
         return false;
     }
 
     initialized = true;
-    ESP_LOGI(TAG, "✅ SIM7600 inicializado.");
+    ESP_LOGI(TAG, "SIM7600 inicializado.");
     return true;
 }
 
@@ -127,7 +127,7 @@ Result Sim7600::sendHttpPost(const std::string& content, const std::string& rout
     if (!initialized && !init()) {
         return Result(false, "No se pudo inicializar SIM7600");
     }
-    ESP_LOGI(TAG, "📡 HTTP POST: %s", route.c_str());
+    ESP_LOGI(TAG, "HTTP POST: %s", route.c_str());
 
     uartWrite("AT+HTTPINIT");
     if (getResponse().find("OK") == std::string::npos) {
@@ -175,7 +175,7 @@ Result Sim7600::mqttPublish(const std::string& topic, const std::string& message
     if (!initialized && !init()) {
         return Result(false, "SIM7600 init failed");
     }
-    ESP_LOGI(TAG, "📡 MQTT publish: %s", topic.c_str());
+    ESP_LOGI(TAG, "MQTT publish: %s", topic.c_str());
 
     uartWrite("AT+CMQTTSTART");
     if (getResponse().find("OK") == std::string::npos) {

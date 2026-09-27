@@ -1,5 +1,6 @@
 #include "Sensor.h"
 
+#include "esp_log.h"
 #include "esp_timer.h"
 
 #include "Messages/MessageSensorData.h"
@@ -18,7 +19,10 @@ void Sensor::setReporting(uint32_t samplePeriodMs, const croniot::ReportPolicy& 
 
 void Sensor::sendSensorData(int sensorUid, const std::string& sensorValue) {
     MessageSensorData messageSensorData(sensorUid, sensorValue);
-    croniot::MessageBus::instance().publishSensorData(sensorUid, messageSensorData.toString());
+    Result result = croniot::MessageBus::instance().publishSensorData(sensorUid, messageSensorData.toString());
+    if (!result.success) {
+        ESP_LOGW("Sensor", "publishSensorData(%d) failed: %s", sensorUid, result.message.c_str());
+    }
 }
 
 void Sensor::reportSample(int sensorUid, double value) {

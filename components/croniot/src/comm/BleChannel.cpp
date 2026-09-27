@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 
+#include "Redact.h"
 #include "esp_bt.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -274,8 +275,8 @@ int gapEvent(struct ble_gap_event* event, void* arg) {
                 case BLE_SM_IOACT_INPUT:
                 case BLE_SM_IOACT_STATIC:
                     pkey.passkey = self->staticPasskey();
-                    ESP_LOGI(TAG, "Using BLE passkey %06lu",
-                             static_cast<unsigned long>(pkey.passkey));
+                    ESP_LOGI(TAG, "Using BLE passkey %s",
+                             croniot::redact(std::to_string(pkey.passkey)).c_str());
                     rc = ble_sm_inject_io(event->passkey.conn_handle, &pkey);
                     break;
 
