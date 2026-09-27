@@ -26,7 +26,7 @@ TEST_F(MessageBusRoutingTest, RegisterDeviceGoesOnlyToAuthChannel) {
     FakeCommChannel* authChannel = addChannel(/*supportsAuth=*/true, "auth");
     FakeCommChannel* bleChannel = addChannel(/*supportsAuth=*/false, "ble");
 
-    MessageBus::instance().registerDevice("{}");
+    (void)MessageBus::instance().registerDevice("{}");
 
     EXPECT_EQ(authChannel->registerDeviceCalls, 1);
     EXPECT_EQ(bleChannel->registerDeviceCalls, 0);
@@ -36,7 +36,7 @@ TEST_F(MessageBusRoutingTest, LoginGoesOnlyToAuthChannel) {
     FakeCommChannel* authChannel = addChannel(true, "auth");
     FakeCommChannel* bleChannel = addChannel(false, "ble");
 
-    MessageBus::instance().login("{}");
+    (void)MessageBus::instance().login("{}");
 
     EXPECT_EQ(authChannel->loginCalls, 1);
     EXPECT_EQ(bleChannel->loginCalls, 0);
@@ -46,8 +46,8 @@ TEST_F(MessageBusRoutingTest, RegisterSensorAndTaskTypeGoOnlyToAuthChannel) {
     FakeCommChannel* authChannel = addChannel(true, "auth");
     FakeCommChannel* bleChannel = addChannel(false, "ble");
 
-    MessageBus::instance().registerSensorType("{}");
-    MessageBus::instance().registerTaskType("{}");
+    (void)MessageBus::instance().registerSensorType("{}");
+    (void)MessageBus::instance().registerTaskType("{}");
 
     EXPECT_EQ(authChannel->registerSensorTypeCalls, 1);
     EXPECT_EQ(authChannel->registerTaskTypeCalls, 1);
@@ -67,7 +67,7 @@ TEST_F(MessageBusRoutingTest, PublishSensorDataBroadcastsToAllChannels) {
     FakeCommChannel* authChannel = addChannel(true, "auth");
     FakeCommChannel* bleChannel = addChannel(false, "ble");
 
-    MessageBus::instance().publishSensorData(42, "\"23.5\"");
+    (void)MessageBus::instance().publishSensorData(42, "\"23.5\"");
 
     EXPECT_EQ(authChannel->publishSensorDataCalls, 1);
     EXPECT_EQ(bleChannel->publishSensorDataCalls, 1);
@@ -79,7 +79,7 @@ TEST_F(MessageBusRoutingTest, PublishTaskProgressUpdateBroadcastsToAllChannels) 
     FakeCommChannel* authChannel = addChannel(true, "auth");
     FakeCommChannel* bleChannel = addChannel(false, "ble");
 
-    MessageBus::instance().publishTaskProgressUpdate("{}");
+    (void)MessageBus::instance().publishTaskProgressUpdate("{}");
 
     EXPECT_EQ(authChannel->publishTaskProgressCalls, 1);
     EXPECT_EQ(bleChannel->publishTaskProgressCalls, 1);

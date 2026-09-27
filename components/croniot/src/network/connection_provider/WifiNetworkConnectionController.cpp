@@ -1,7 +1,14 @@
+#include <algorithm>
 #include <cstring>
 #include "WifiNetworkConnectionController.h"
 
 static const char* TAG = "WifiNetworkConnectionController";
+
+namespace {
+constexpr int64_t kBaseReconnectDelayUs = 2 * 1000 * 1000;   // 2 s
+constexpr int64_t kMaxReconnectDelayUs = 30 * 1000 * 1000;   // 30 s
+constexpr int kMaxBackoffShift = 5;                          // 2*2^5 = 64 s, already clamped above
+}  // namespace
 
 bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnectedCallback wifiConnectedCallback) {
     this->wifiConnectedCallback = wifiConnectedCallback;
@@ -75,9 +82,21 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
     wifi_cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;   // Cualquier modo de auth
     wifi_cfg.sta.bssid_set = false;                     // No fijar BSSID específico
     
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_set_mode failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    err = esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_set_config failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
     // ✅ Tiempo para estabilización del RF
     ESP_LOGI(TAG, "Waiting for RF stabilization...");
@@ -119,9 +138,21 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
 //esp_wifi_set_ps(WIFI_PS_NONE);           // Confirmar power saving OFF
 
     ESP_LOGI(TAG_WIFI, "Wi-Fi started, connecting to '%s'", nm.wifiSsid.c_str());
-    ESP_ERROR_CHECK(esp_wifi_connect());
+    err = esp_wifi_connect();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_WIFI, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
     return true;
+}
+
+void WifiNetworkConnectionController::reconnectTimerCallback(void* arg) {
+    auto* inst = static_cast<WifiNetworkConnectionController*>(arg);
+    esp_err_t err = esp_wifi_connect();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG_WIFI, "Reconnect attempt failed to start: %s", esp_err_to_name(err));
+    }
 }
 
 void WifiNetworkConnectionController::wifiEventHandler(void* arg,
@@ -130,16 +161,33 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
     auto& inst = WifiNetworkConnectionController::instance();
 
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGW(TAG_WIFI, "Disconnected");
+        auto* event = static_cast<wifi_event_sta_disconnected_t*>(data);
+        ESP_LOGW(TAG_WIFI, "Disconnected (reason=%d)", event ? event->reason : -1);
         inst.setWifiConnected(false);
         NetworkManager::instance().setConnectedToWifi(false);
-        esp_wifi_connect();
+
+        int shift = std::min(inst.reconnectAttempt, kMaxBackoffShift);
+        int64_t delayUs = std::min(kBaseReconnectDelayUs << shift, kMaxReconnectDelayUs);
+        inst.reconnectAttempt++;
+
+        if (inst.reconnectTimer == nullptr) {
+            esp_timer_create_args_t timerArgs = {};
+            timerArgs.callback = &WifiNetworkConnectionController::reconnectTimerCallback;
+            timerArgs.arg = &inst;
+            timerArgs.name = "wifi_reconnect";
+            esp_timer_create(&timerArgs, &inst.reconnectTimer);
+        } else {
+            esp_timer_stop(inst.reconnectTimer);  // no-op if it wasn't running
+        }
+        ESP_LOGI(TAG_WIFI, "Reconnecting in %lld ms (attempt %d)", delayUs / 1000, inst.reconnectAttempt);
+        esp_timer_start_once(inst.reconnectTimer, static_cast<uint64_t>(delayUs));
     }
     else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = static_cast<ip_event_got_ip_t*>(data);
         ESP_LOGI(TAG_WIFI, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         inst.setWifiConnected(true);
         NetworkManager::instance().setConnectedToWifi(true);
+        inst.reconnectAttempt = 0;
 
         if (!inst.taskCreated) {
             // First connection: full authentication + MQTT init

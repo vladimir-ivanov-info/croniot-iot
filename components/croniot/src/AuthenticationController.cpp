@@ -1,6 +1,7 @@
 #include "AuthenticationController.h"
 
 #include "comm/MessageBus.h"
+#include "Redact.h"
 #include "esp_log.h"
 
 bool AuthenticationController::init() {
@@ -9,7 +10,7 @@ bool AuthenticationController::init() {
 
     UserCredentials credentials = Storage::instance().readUserCredentials();
 
-    ESP_LOGI("Auth", "Auth %s", credentials.deviceToken.c_str());
+    ESP_LOGI("Auth", "Auth token %s", croniot::redact(credentials.deviceToken).c_str());
 
     if (!forceRegisterDevice &&
         !credentials.accountEmail.empty() &&
