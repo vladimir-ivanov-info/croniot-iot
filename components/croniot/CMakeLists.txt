@@ -43,6 +43,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/RemoteChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannelLogic.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/LoggingCommChannel.cpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LineParser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Span.cpp
@@ -61,6 +62,9 @@ idf_component_register(
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry/Uplink.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/health/HealthReport.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/health/Health.cpp
+
     INCLUDE_DIRS
         src
         src/comm
@@ -75,6 +79,7 @@ idf_component_register(
         src/network/sim7600
         src/log
         src/telemetry
+        src/health
 
     REQUIRES
         nvs_flash

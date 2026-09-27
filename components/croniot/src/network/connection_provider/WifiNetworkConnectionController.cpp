@@ -133,6 +133,7 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
         ESP_LOGW(TAG_WIFI, "Disconnected");
         inst.setWifiConnected(false);
         NetworkManager::instance().setConnectedToWifi(false);
+        CRONIOT_COUNT(wifi_reconnect);
         esp_wifi_connect();
     }
     else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
