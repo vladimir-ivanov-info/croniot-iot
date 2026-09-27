@@ -44,4 +44,36 @@ menu "Croniot logging (croniot::log)"
         default 1
         depends on CRONIOT_LOG_ENABLE
 
+    config CRONIOT_LOG_JOURNAL_LOW_WATER_MARK_PERCENT
+        int "Journal low water mark (% free, reclaim starts)"
+        default 20
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §8.8. Below this much free space on the `journal` or
+            `archive` partition, the space reclaimer starts freeing
+            already-acked segments, then Data past its retention window,
+            then Logs oldest-first.
+
+    config CRONIOT_LOG_JOURNAL_CRITICAL_MARK_PERCENT
+        int "Journal critical mark (% free, breaches retention window)"
+        default 5
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §8.8. Only below this much free space will the reclaimer
+            breach the Data retention window itself (the last resort
+            before Journal::maybeReclaim() reports degradedToRamOnly).
+            Incidents, events and coredump are never sacrificed regardless
+            of how critical space gets.
+
+    config CRONIOT_LOG_JOURNAL_MAX_BYTES_PER_DAY
+        int "Journal max bytes/day per stream before a write_budget_exceeded event (0 = no budget)"
+        default 0
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §3.10: "el presupuesto avisa, no recorta" - hardBudget is
+            not implemented, so crossing this only raises one
+            write_budget_exceeded event per stream per day. 0 (the
+            default) disables the check entirely, matching the plan's
+            "guardar todo" default.
+
 endmenu

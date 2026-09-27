@@ -31,6 +31,7 @@ add_executable(host_tests
     ${CRONIOT_SRC}/log/Span.cpp
     ${CRONIOT_SRC}/log/Context.cpp
     ${CRONIOT_SRC}/log/StateMachine.cpp
+    ${CRONIOT_SRC}/log/SpaceReclaimer.cpp
 
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
@@ -45,6 +46,10 @@ add_executable(host_tests
     ContextTest.cpp
     CountersTest.cpp
     StateMachineTest.cpp
+    JournalCursorTest.cpp
+    SpaceReclaimerTest.cpp
+    WriteAccountingTest.cpp
+    IncidentDetectorTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

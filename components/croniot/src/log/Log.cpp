@@ -6,10 +6,13 @@
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
+#include "IncidentRecovery.h"
+#include "Journal.h"
 #include "LevelResolver.h"
 #include "LogRecord.h"
 #include "LogRouter.h"
 #include "LogTask.h"
+#include "NoinitRing.h"
 
 namespace croniot::log {
 
@@ -42,7 +45,7 @@ std::map<std::string, Level> g_tagOverrides;
 
 std::array<SinkState, 3> g_sinks = {{
     {true, Level::Info, Detail::Normal},    // Sink::Console
-    {false, Level::Info, Detail::Normal},   // Sink::Flash - no-op until PR9
+    {true, Level::Info, Detail::Normal},    // Sink::Flash - follows `capture` by default (plan §3.4); level reset in init()
     {false, Level::Info, Detail::Normal},   // Sink::Sd - no-op until PR21
 }};
 
@@ -63,6 +66,12 @@ void applyConsoleSinkToTask() {
     const SinkState& console = g_sinks[static_cast<size_t>(Sink::Console)];
     LogTask::setConsoleEnabled(console.enabled);
     LogTask::setConsoleLevel(console.level);
+}
+
+void applyFlashSinkToTask() {
+    const SinkState& flash = g_sinks[static_cast<size_t>(Sink::Flash)];
+    LogTask::setFlashEnabled(flash.enabled);
+    LogTask::setFlashLevel(flash.level);
 }
 
 // Global esp_log ceiling = the most verbose level anything currently
@@ -99,11 +108,29 @@ void init(const LogConfig& config) {
         g_tagOverrides[tag] = level;
     }
 
+    // Flash's own level, unless a caller already raised it via
+    // sink(Sink::Flash).level(...) before init() (unlikely, but SinkHandle
+    // methods don't require init() to have run first) - "sigue al nivel
+    // de captura" is a default, not a floor.
+    SinkState& flash = g_sinks[static_cast<size_t>(Sink::Flash)];
+    if (static_cast<uint8_t>(flash.level) < static_cast<uint8_t>(config.capture)) {
+        flash.level = config.capture;
+    }
+
     LogTask::setConsoleFormat(config.consoleFormat);
     applyConsoleSinkToTask();
+    applyFlashSinkToTask();
     recomputeEspLogLevels();
 
+    // Order matters: LogRouter::install() runs NoinitRing::init()/
+    // RtcCriticalStore::init() (so their leftover-data counts reflect
+    // reality), Journal::init() mounts the durable partitions those
+    // records get drained into, and IncidentRecovery::run() must inspect
+    // both before LogTask::start() begins popping the ring - see
+    // IncidentRecovery.h.
     LogRouter::instance().install();
+    Journal::instance().init();
+    IncidentRecovery::run();
     LogTask::start();
 }
 
@@ -124,6 +151,10 @@ void event(const std::string& name, Level severity,
     record.setTag(name.c_str());
     record.setMessage(message.c_str());
     LogRouter::instance().pushEvent(record);
+    // Durable copy on the Events stream, in addition to (not instead of)
+    // the ring push above - see Journal.h's appendEvent() doc comment for
+    // why events get their own never-reclaimed copy.
+    Journal::instance().appendEvent(record);
 }
 
 void setLevel(const std::string& tag, Level level, uint32_t ttlSec) {
@@ -138,9 +169,16 @@ void setLevel(const std::string& tag, Level level, uint32_t ttlSec) {
 
 void registerSecret(const std::string& secret) { LogRouter::instance().registerSecret(secret); }
 
+namespace {
+void applySinkToTask(Sink which) {
+    if (which == Sink::Console) applyConsoleSinkToTask();
+    if (which == Sink::Flash) applyFlashSinkToTask();
+}
+}  // namespace
+
 SinkHandle& SinkHandle::off() {
     g_sinks[static_cast<size_t>(which_)].enabled = false;
-    if (which_ == Sink::Console) applyConsoleSinkToTask();
+    applySinkToTask(which_);
     recomputeEspLogLevels();
     return *this;
 }
@@ -149,7 +187,7 @@ SinkHandle& SinkHandle::level(Level level) {
     SinkState& state = g_sinks[static_cast<size_t>(which_)];
     state.enabled = true;
     state.level = level;
-    if (which_ == Sink::Console) applyConsoleSinkToTask();
+    applySinkToTask(which_);
     recomputeEspLogLevels();
     return *this;
 }
@@ -157,11 +195,11 @@ SinkHandle& SinkHandle::level(Level level) {
 SinkHandle& SinkHandle::detail(Detail detail) {
     SinkState& state = g_sinks[static_cast<size_t>(which_)];
     state.enabled = true;
-    // Stored, not yet acted on: ConsoleSink (PR7's only sink) always
-    // renders Normal-equivalent content - same "config surface reserved,
+    // Stored, not yet acted on: ConsoleSink and Journal always render/
+    // persist Normal-equivalent content - same "config surface reserved,
     // behavior deferred" pattern as Profile (see Log.h).
     state.detail = detail;
-    if (which_ == Sink::Console) applyConsoleSinkToTask();
+    applySinkToTask(which_);
     recomputeEspLogLevels();
     return *this;
 }
@@ -174,13 +212,20 @@ void only(Sink which, Level level) {
     }
     g_sinks[static_cast<size_t>(which)].level = level;
     applyConsoleSinkToTask();
+    applyFlashSinkToTask();
     recomputeEspLogLevels();
 }
 
 void flushBeforeSleep() {
-    // No durable sink exists yet (PR9) - nothing to flush. Reserved so
-    // call sites that need this before a future deep-sleep path already
-    // compile against the final shape.
+    // Deep sleep loses `.noinit` (HP SRAM isn't retained - see plan
+    // §3.7's table), so anything still sitting in NoinitRing right
+    // before sleeping would simply vanish unless it's drained to durable
+    // storage first. RateLimiter's own pending run is flushed first so a
+    // repeat-in-progress isn't lost either.
+    LogRouter::instance().flushRateLimiterPending();
+    while (auto record = NoinitRing::pop()) {
+        Journal::instance().appendLog(*record);
+    }
 }
 
 #else  // CONFIG_CRONIOT_LOG_ENABLE=n: kill switch, everything is a no-op.

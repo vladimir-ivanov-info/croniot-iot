@@ -53,6 +53,9 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogRouter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogTask.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/ConsoleSink.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/SpaceReclaimer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Journal.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/IncidentRecovery.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Log.cpp
 
     INCLUDE_DIRS
@@ -78,4 +81,7 @@ idf_component_register(
         driver
         esp_wifi
         bt
+        espcoredump
+        esp_app_format
+        esp_timer
 )
