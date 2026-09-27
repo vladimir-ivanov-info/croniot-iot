@@ -59,6 +59,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Journal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/IncidentRecovery.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/BootCounter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/RemoteLogConfig.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Log.cpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry/Uplink.cpp
