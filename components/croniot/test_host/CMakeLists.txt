@@ -58,6 +58,8 @@ add_executable(host_tests
     BatchEnvelopeTest.cpp
     HealthReportTest.cpp
     RemoteLogConfigTest.cpp
+    SensorReportBufferTest.cpp
+    SensorBatchEncoderTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

@@ -84,6 +84,22 @@ public:
     // runs off the hook already (see Log.h's event() contract).
     void appendEvent(const LogRecord& record);
 
+    // Appends an already-encoded payload verbatim (length-prefixed,
+    // same framing as appendLog()/appendEvent() - see FrameCodec.h) -
+    // for streams whose content isn't a LogRecord at all, namely Data
+    // (plan §7.2/§12.6 PR18: sensor batches, encoded by
+    // Sensors/SensorBatchEncoder.h). Assigns and returns this frame's
+    // seq the same way appendLog() does; the returned value is
+    // informational only - Journal itself derives seq purely from
+    // segment position on read (see readFrom()), never by decoding a
+    // frame's own bytes, so a caller has no obligation to embed it back
+    // into the payload. Returns nullopt if `stream`'s partition isn't
+    // mounted. Unlike appendToStream(), does not check
+    // CRONIOT_LOG_JOURNAL_MAX_BYTES_PER_DAY - that budget is scoped to
+    // logs/events write volume (plan §3.10), not sensor-data volume,
+    // which this pass doesn't add a separate budget for.
+    std::optional<uint32_t> appendRaw(Stream stream, const uint8_t* data, size_t len);
+
     // Runs SpaceReclaimer against whichever mounted partition(s) have
     // dropped under the low water mark. Called by LogTask periodically
     // and right after every rotation - never from the hot append path.

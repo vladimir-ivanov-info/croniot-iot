@@ -368,6 +368,37 @@ void Journal::appendEvent(const LogRecord& record) {
     appendToStream(eventsState_, Stream::Events, record);
 }
 
+std::optional<uint32_t> Journal::appendRaw(Stream stream, const uint8_t* data, size_t len) {
+    StreamState& state = stateFor(stream);
+    if (!state.mounted) return std::nullopt;
+
+    uint32_t seq = state.cursor.assignSeq();
+    std::vector<uint8_t> bytes(data, data + len);
+
+    if (!state.openFile) {
+        uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
+        std::string name = segmentPath(state, openId);
+        state.openFile = fopen(name.c_str(), "ab");
+        if (!state.openFile) {
+            ESP_LOGW(TAG, "could not open segment '%s'", name.c_str());
+            return std::nullopt;
+        }
+    }
+
+    writeLengthPrefixed(static_cast<FILE*>(state.openFile), bytes);
+
+    uint32_t written = static_cast<uint32_t>(bytes.size() + 2);
+    state.openSegmentBytes += written;
+    SegmentRecord& open = state.segments[state.segmentCount - 1];
+    open.newestSeq = seq;
+    open.sizeBytes = state.openSegmentBytes;
+
+    writeAccounting_.addBytesWritten(stream, written, uptimeDayIndex());
+
+    rotateIfNeeded(state, stream);
+    return seq;
+}
+
 void Journal::maybeReclaim() {
     if (logsState_.mounted) reclaimMount(logsState_, logsState_.partitionLabel, UINT64_MAX);
     if (dataState_.mounted) reclaimMount(dataState_, dataState_.partitionLabel, kDataRetentionSeconds);

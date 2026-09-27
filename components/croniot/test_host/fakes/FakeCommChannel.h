@@ -87,6 +87,12 @@ public:
         return Result(true, "");
     }
 
+    Result publishSensorBatch(const std::string& deviceUuid, const std::string& cbor) override {
+        publishSensorBatchCalls++;
+        lastSensorBatch = cbor;
+        return Result(true, "");
+    }
+
     Result publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
                           bool retain) override {
         publishStatusCalls++;
@@ -126,11 +132,13 @@ public:
     ConnectionReadyCallback onReadyCallback;
     int publishLogBatchCalls = 0;
     int publishDeviceEventCalls = 0;
+    int publishSensorBatchCalls = 0;
     int publishStatusCalls = 0;
     int subscribeAckCalls = 0;
     int subscribeLogConfigCalls = 0;
     std::string lastLogBatch;
     std::string lastDeviceEvent;
+    std::string lastSensorBatch;
     bool lastStatusRetain = false;
     std::function<void(const std::string&)> ackCallback;
     std::function<void(const std::string&)> logConfigCallback;

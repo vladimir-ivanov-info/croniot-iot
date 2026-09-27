@@ -66,10 +66,10 @@ constexpr uint32_t kMaxAttempts = CONFIG_CRONIOT_UPLINK_MAX_ATTEMPTS;
 constexpr uint32_t kMaxAttempts = 8;
 #endif
 
-// Anti-starvation quota for Stream::Data (plan §5 point 9) - not acted on
-// for real sends yet (see Uplink.h's "known scoped simplification": Data
-// has no wire topic until Tanda F), but exercised so the scheduler's
-// behavior is already correct once Data has something to send.
+// Anti-starvation quota for Stream::Data (plan §5 point 9): once
+// Events/Logs have been draining for this long straight, Data gets a
+// turn even if the higher-priority streams still have backlog left -
+// see UplinkScheduler::pickNext().
 constexpr uint64_t kDataStarvationMs = 5 * 60 * 1000;
 
 constexpr TickType_t kPollIntervalTicks = pdMS_TO_TICKS(200);
@@ -234,17 +234,17 @@ bool Uplink::sendBatch(croniot::log::Stream stream, uint32_t firstSeq, uint32_t 
         encodeBatchEnvelope(croniot::log::BootCounter::current(), stream, firstSeq, count, frames);
     std::string payload(envelope.begin(), envelope.end());
 
-    Result result(false, "stream has no wire topic yet");
+    Result result(false, "unknown stream");
     if (stream == croniot::log::Stream::Logs) {
         result = croniot::MessageBus::instance().publishLogBatch(payload);
     } else if (stream == croniot::log::Stream::Events) {
         result = croniot::MessageBus::instance().publishDeviceEvent(payload);
     } else {
-        // Stream::Data: no wire topic until Tanda F (see Uplink.h) -
-        // never reaches here today since Journal has no Data producers
-        // yet either, but this is the explicit, documented stop rather
-        // than a silent one if that changes before Tanda F lands.
-        return false;
+        // Stream::Data (plan §7.2/§12.6): sensor batches, encoded by
+        // Sensors/SensorBatchEncoder.h and appended via Journal::
+        // appendRaw() - the wire topic Uplink.h's class comment
+        // documented as not existing until this batch landed.
+        result = croniot::MessageBus::instance().publishSensorBatch(payload);
     }
 
     if (!result.success) {
