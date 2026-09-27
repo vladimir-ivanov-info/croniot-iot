@@ -32,6 +32,7 @@ add_executable(host_tests
     ${CRONIOT_SRC}/log/Context.cpp
     ${CRONIOT_SRC}/log/StateMachine.cpp
     ${CRONIOT_SRC}/log/SpaceReclaimer.cpp
+    ${CRONIOT_SRC}/health/HealthReport.cpp
 
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
@@ -54,6 +55,7 @@ add_executable(host_tests
     RetryPolicyTest.cpp
     UplinkSchedulerTest.cpp
     BatchEnvelopeTest.cpp
+    HealthReportTest.cpp
     SensorReportBufferTest.cpp
     SensorBatchEncoderTest.cpp
 )

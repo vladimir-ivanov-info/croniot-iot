@@ -25,6 +25,7 @@
 #include "nvs_flash.h"
 
 #include "ConnectionTypes.h"
+#include "log/Counters.h"
 
 static const char* TAG_WIFI = "WIFI_CTRL";
 

@@ -142,6 +142,27 @@ public:
     // itself outside this class.
     uint32_t firstUnackedSeq(Stream stream) const;
 
+    struct PartitionUsage {
+        uint64_t totalBytes = 0;
+        uint64_t usedBytes = 0;
+    };
+
+    // esp_littlefs_info() on whichever partition backs `stream` ("journal"
+    // for Logs/Events, "archive" for Data - see stateFor()). Queried on
+    // demand for the health report (plan §11.4), not cached: this isn't
+    // on any hot path, and a cached value would go stale exactly when it
+    // matters most (right after the space reclaimer runs). nullopt if
+    // that stream isn't mounted.
+    std::optional<PartitionUsage> partitionUsage(Stream stream) const;
+
+    // WriteAccounting's estimator (see WriteAccounting.h), fed the sum of
+    // lifetime bytes for every stream sharing `stream`'s partition (Logs+
+    // Events both land on "journal") and that partition's real size from
+    // partitionUsage() - not each stream's own lifetime bytes alone,
+    // since wear is a property of the physical partition, not of one
+    // stream's slice of it. Returns -1.0 if the partition isn't mounted.
+    double estimatedWearPercent(Stream stream, uint32_t enduranceCycles) const;
+
     // Public so Journal.cpp's on-disk IndexFileFormat (an implementation
     // detail of that file, not exposed here) can size its segment array
     // to match exactly, instead of duplicating this number as a literal
@@ -177,6 +198,7 @@ private:
                        uint64_t retentionSeconds);
     static std::string segmentPath(const StreamState& state, uint32_t segmentId);
     StreamState& stateFor(Stream stream);
+    uint64_t partitionLifetimeBytes(const char* partitionLabel) const;
 
     StreamState logsState_;
     StreamState eventsState_;
