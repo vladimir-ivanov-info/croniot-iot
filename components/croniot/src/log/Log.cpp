@@ -1,6 +1,7 @@
 #include "Log.h"
 
 #include <array>
+#include <cstdio>
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -14,6 +15,7 @@
 #include "LogRouter.h"
 #include "LogTask.h"
 #include "NoinitRing.h"
+#include "RemoteLogConfig.h"
 
 namespace croniot::log {
 
@@ -51,6 +53,15 @@ std::array<SinkState, 3> g_sinks = {{
 }};
 
 uint64_t nowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
+
+// Lives on the `journal` mount (see Journal.cpp's initMount() calls) -
+// not the plan's original `/littlefs/log_config.json` path, because
+// this SDK's two-step init (Log::init() runs before CommonSetup::setup()
+// mounts the credentials partition via Storage.cpp) means `/littlefs`
+// isn't guaranteed mounted yet when a config could first be applied,
+// whereas Journal::init() (called from this same init(), see below) has
+// already mounted `/journal` by the time this path is ever touched.
+constexpr const char* kLogConfigPath = "/journal/log_config.json";
 
 esp_log_level_t toEspLogLevel(Level level) {
     switch (level) {
@@ -99,6 +110,34 @@ void recomputeEspLogLevels() {
     }
 }
 
+void applyParsedConfig(const RemoteLogConfig& parsed) {
+    g_resolver.clearRemote();
+    if (parsed.defaultLevel) g_resolver.setRemoteDefault(*parsed.defaultLevel);
+    for (const auto& [tag, level] : parsed.tagLevels) {
+        g_resolver.setRemoteTagLevel(tag, level);
+        g_tagOverrides[tag] = level;
+    }
+    recomputeEspLogLevels();
+}
+
+void persistRemoteConfig(const std::string& json) {
+    FILE* f = fopen(kLogConfigPath, "w");
+    if (!f) return;  // `journal` not mounted - not fatal, matches Journal's own "never fails hard"
+    fwrite(json.data(), 1, json.size(), f);
+    fclose(f);
+}
+
+void loadPersistedRemoteConfig() {
+    FILE* f = fopen(kLogConfigPath, "r");
+    if (!f) return;  // no persisted config yet, or `journal` not mounted - code/Kconfig defaults apply
+    char buf[512];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    auto parsed = parseRemoteLogConfig(buf);
+    if (parsed) applyParsedConfig(*parsed);
+}
+
 }  // namespace
 
 void init(const LogConfig& config) {
@@ -132,6 +171,7 @@ void init(const LogConfig& config) {
     // IncidentRecovery.h.
     LogRouter::instance().install();
     Journal::instance().init();
+    loadPersistedRemoteConfig();  // needs `journal` mounted, hence after Journal::init(), not before
     IncidentRecovery::run();
     LogTask::start();
 }
@@ -170,6 +210,34 @@ void setLevel(const std::string& tag, Level level, uint32_t ttlSec) {
 }
 
 void registerSecret(const std::string& secret) { LogRouter::instance().registerSecret(secret); }
+
+Result applyRemoteConfig(const std::string& json) {
+    auto parsed = parseRemoteLogConfig(json);
+    if (!parsed) return Result(false, "malformed log_config JSON");
+
+    if (parsed->ttlSec == 0) {
+        applyParsedConfig(*parsed);
+        persistRemoteConfig(json);
+    } else {
+        uint64_t expiresAtMs = nowMs() + static_cast<uint64_t>(parsed->ttlSec) * 1000;
+        if (parsed->defaultLevel) g_resolver.setTtlOverride(*parsed->defaultLevel, expiresAtMs);
+        for (const auto& [tag, level] : parsed->tagLevels) {
+            g_resolver.setTtlTagOverride(tag, level, expiresAtMs);
+            g_tagOverrides[tag] = level;
+        }
+        recomputeEspLogLevels();
+        // Deliberately not persisted - see Log.h's applyRemoteConfig() doc
+        // comment: a TTL reverting cleanly on its own across a reboot
+        // needs a real clock this SDK doesn't have yet.
+    }
+
+    event("log_config_applied", Level::Info,
+          {{"default", parsed->defaultLevel ? std::string(toString(*parsed->defaultLevel)) : "unchanged"},
+           {"tags", std::to_string(parsed->tagLevels.size())},
+           {"ttlSec", std::to_string(parsed->ttlSec)}});
+
+    return Result(true, "log_config applied");
+}
 
 namespace {
 void applySinkToTask(Sink which) {
@@ -237,6 +305,7 @@ void init(const LogConfig&) {}
 void event(const std::string&, Level, std::initializer_list<std::pair<std::string, std::string>>) {}
 void setLevel(const std::string&, Level, uint32_t) {}
 void registerSecret(const std::string&) {}
+Result applyRemoteConfig(const std::string&) { return Result(false, "croniot::log disabled (CONFIG_CRONIOT_LOG_ENABLE=n)"); }
 SinkHandle& SinkHandle::off() { return *this; }
 SinkHandle& SinkHandle::level(Level) { return *this; }
 SinkHandle& SinkHandle::detail(Detail) { return *this; }
