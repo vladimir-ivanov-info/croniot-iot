@@ -46,6 +46,11 @@ public:
     // this Journal doesn't need either to stay correct).
     void onAck(const std::string& json);
 
+    // Current resend-attempt count for whichever batch is in flight on
+    // `stream`, 0 if none - a health-report signal (plan §5 point 13's
+    // "resends"), not used by the drain loop itself.
+    uint32_t currentAttempt(croniot::log::Stream stream) const;
+
 private:
     Uplink() = default;
 

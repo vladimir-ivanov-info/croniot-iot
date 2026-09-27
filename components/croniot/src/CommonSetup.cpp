@@ -14,6 +14,7 @@
 #include "comm/BleChannel.h"
 #include "comm/MessageBus.h"
 #include "comm/RemoteChannel.h"
+#include "health/Health.h"
 #include "log/Log.h"
 #include "telemetry/Uplink.h"
 
@@ -56,6 +57,13 @@ bool CommonSetup::setup(const croniot::CroniotConfig& config) {
 
     auto& bus = MessageBus::instance();
     bus.setDeviceUuid(config.deviceUuid);
+
+    // Deliberately not gated on server auth / a connected channel (unlike
+    // Uplink::start() below) - a health report that never leaves the
+    // Journal is still useful (readable later, e.g. over BLE), and "this
+    // device never got online" is itself the kind of thing worth
+    // reporting, not a reason to withhold the report.
+    croniot::health::Health::instance().start();
 
     for (auto type : config.channels) {
         switch (type) {

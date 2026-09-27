@@ -65,6 +65,18 @@ menu "Croniot logging (croniot::log)"
             Incidents, events and coredump are never sacrificed regardless
             of how critical space gets.
 
+    config CRONIOT_LOG_FLASH_ENDURANCE_CYCLES
+        int "Assumed NOR flash erase-cycle endurance per sector, for the wear estimate"
+        default 100000
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §3.10. Feeds the health report's wear-percent estimate
+            (bytes written / partition size, as a fraction of this many
+            erase cycles). A conservative default for typical ESP32 NOR
+            flash - the estimate itself is documented as a lower bound
+            (LittleFS's own write amplification isn't accounted for), so
+            the alarm threshold in the health consumer should have margin.
+
     config CRONIOT_LOG_JOURNAL_MAX_BYTES_PER_DAY
         int "Journal max bytes/day per stream before a write_budget_exceeded event (0 = no budget)"
         default 0
@@ -120,5 +132,35 @@ menu "Croniot telemetry uplink (croniot::telemetry)"
             The batch's data is never dropped from the Journal on give-up
             - only this *attempt* stops retrying immediately; the next
             serviceOnce() pass picks the same unacked range back up.
+
+endmenu
+
+menu "Croniot health report (croniot::health)"
+
+    config CRONIOT_HEALTH_ENABLE
+        bool "Enable the periodic health report"
+        default y
+        help
+            Plan §11.4/§12.4 (PR13). Kill switch: when disabled,
+            Health::start() creates no task and emits no events - nothing
+            else in this SDK depends on it.
+
+    config CRONIOT_HEALTH_INTERVAL_SEC
+        int "Seconds between health reports"
+        default 300
+        depends on CRONIOT_HEALTH_ENABLE
+
+    config CRONIOT_HEALTH_TASK_STACK_SIZE
+        int "croniot_health task stack size (bytes)"
+        default 4096
+        depends on CRONIOT_HEALTH_ENABLE
+
+    config CRONIOT_HEALTH_TASK_PRIORITY
+        int "croniot_health task priority"
+        default 1
+        depends on CRONIOT_HEALTH_ENABLE
+        help
+            Deliberately low - a stalled health report is a missed
+            metric, not something worth preempting real work for.
 
 endmenu
