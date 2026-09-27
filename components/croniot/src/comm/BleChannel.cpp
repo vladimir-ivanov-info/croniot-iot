@@ -680,6 +680,22 @@ void BleChannel::subscribeTaskStateInfoSync(const std::string&,
     taskStateSyncHandlers_[taskTypeUid] = taskInstance;
 }
 
+Result BleChannel::publishLogBatch(const std::string&, const std::string&) {
+    return Result(false, "BLE log/event uplink not implemented yet (Tanda E)");
+}
+
+Result BleChannel::publishDeviceEvent(const std::string&, const std::string&) {
+    return Result(false, "BLE log/event uplink not implemented yet (Tanda E)");
+}
+
+Result BleChannel::publishStatus(const std::string&, const std::string&, bool) {
+    return Result(false, "BLE status/birth not implemented yet (Tanda E)");
+}
+
+void BleChannel::subscribeAck(const std::string&, std::function<void(const std::string&)>) {}
+
+void BleChannel::subscribeLogConfig(const std::string&, std::function<void(const std::string&)>) {}
+
 void BleChannel::onTaskCommandWrite(const std::string& payload) {
     ESP_LOGI(TAG, "TaskCommand write: %.*s", (int)payload.size(), payload.data());
 

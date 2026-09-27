@@ -17,9 +17,14 @@ class Sim7600MqttController : public MqttController {
 
         bool init() override;
         Result publish(const std::string& topic, const std::string& message) override;
+        Result publishWithOptions(const std::string& topic, const std::string& message, int qos,
+                                   bool retain) override;
         void registerCallback(const std::string& topic, TaskBase* taskInstance) override;
 
         void registerCallbackTaskStateInfoSync(const std::string& topic, TaskBase* taskInstance) override;
+
+        void registerRawCallback(const std::string& topic,
+                                  std::function<void(const std::string&)> callback) override;
 
 
 private:

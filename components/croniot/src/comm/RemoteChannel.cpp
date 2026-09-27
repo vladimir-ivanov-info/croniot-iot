@@ -23,6 +23,15 @@ const std::string ROUTE_IOT_LOGIN            = "/api/iot/login";
 const std::string ROUTE_REGISTER_SENSOR_TYPE = "/api/register_sensor_type";
 const std::string ROUTE_REGISTER_TASK_TYPE   = "/api/register_task_type";
 
+// Telemetry topics (plan §4). Status is shared between the LWT
+// (WifiMqttController::init() sets "offline" on that same topic) and
+// this channel's own retained "online"/birth publish.
+std::string topicLogs(const std::string& deviceUuid)   { return "/iot_to_server/logs/" + deviceUuid; }
+std::string topicEvents(const std::string& deviceUuid) { return "/iot_to_server/events/" + deviceUuid; }
+std::string topicStatus(const std::string& deviceUuid) { return "/iot_to_server/status/" + deviceUuid; }
+std::string topicAck(const std::string& deviceUuid)    { return "/server/" + deviceUuid + "/ack"; }
+std::string topicLogConfig(const std::string& deviceUuid) { return "/server/" + deviceUuid + "/log_config"; }
+
 }
 
 RemoteChannel::RemoteChannel(const CroniotConfig::RemoteCfg& cfg) : cfg_(cfg) {
@@ -101,6 +110,32 @@ void RemoteChannel::subscribeTaskStateInfoSync(const std::string& deviceUuid,
                                                TaskBase* taskInstance) {
     std::string topic = "/server/" + deviceUuid + "/task_state_info_sync/" + std::to_string(taskTypeUid);
     mqtt_->registerCallbackTaskStateInfoSync(topic, taskInstance);
+}
+
+Result RemoteChannel::publishLogBatch(const std::string& deviceUuid, const std::string& cbor) {
+    // QoS 1, not the sensor-data path's QoS 2 (plan §4): logs/events are
+    // idempotent by (device, boot, stream, seq) already, so QoS 2's extra
+    // round trip (PUBREC/PUBREL/PUBCOMP) buys nothing here.
+    return mqtt_->publishWithOptions(topicLogs(deviceUuid), cbor, /*qos=*/1, /*retain=*/false);
+}
+
+Result RemoteChannel::publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) {
+    return mqtt_->publishWithOptions(topicEvents(deviceUuid), cbor, /*qos=*/1, /*retain=*/false);
+}
+
+Result RemoteChannel::publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
+                                    bool retain) {
+    return mqtt_->publishWithOptions(topicStatus(deviceUuid), jsonPayload, /*qos=*/1, retain);
+}
+
+void RemoteChannel::subscribeAck(const std::string& deviceUuid,
+                                 std::function<void(const std::string&)> callback) {
+    mqtt_->registerRawCallback(topicAck(deviceUuid), std::move(callback));
+}
+
+void RemoteChannel::subscribeLogConfig(const std::string& deviceUuid,
+                                       std::function<void(const std::string&)> callback) {
+    mqtt_->registerRawCallback(topicLogConfig(deviceUuid), std::move(callback));
 }
 
 }

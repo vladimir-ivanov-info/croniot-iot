@@ -40,6 +40,19 @@ public:
                                     int taskTypeUid,
                                     TaskBase* taskInstance) override;
 
+    // No-op until Tanda E's LOG_CONFIG/LOG_STREAM characteristics exist
+    // (plan §5 point 11: over BLE the phone is the destination, not a
+    // relay onto this same MQTT-shaped protocol) - same "config surface
+    // reserved, behavior deferred" pattern as Sink::Sd in Log.h.
+    Result publishLogBatch(const std::string& deviceUuid, const std::string& cbor) override;
+    Result publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) override;
+    Result publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
+                          bool retain) override;
+    void subscribeAck(const std::string& deviceUuid,
+                      std::function<void(const std::string&)> callback) override;
+    void subscribeLogConfig(const std::string& deviceUuid,
+                            std::function<void(const std::string&)> callback) override;
+
     void onTaskCommandWrite(const std::string& payload);
     void onTaskStateSyncWrite(const std::string& payload);
     void onSyncCommandWrite(const std::string& payload);

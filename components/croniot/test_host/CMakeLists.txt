@@ -50,6 +50,10 @@ add_executable(host_tests
     SpaceReclaimerTest.cpp
     WriteAccountingTest.cpp
     IncidentDetectorTest.cpp
+    FrameCodecTest.cpp
+    RetryPolicyTest.cpp
+    UplinkSchedulerTest.cpp
+    BatchEnvelopeTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

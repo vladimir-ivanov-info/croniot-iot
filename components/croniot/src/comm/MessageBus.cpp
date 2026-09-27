@@ -22,6 +22,11 @@ CommChannel* MessageBus::serverAuthChannel() const {
     return nullptr;
 }
 
+CommChannel* MessageBus::preferUplinkChannel() const {
+    if (auto* ch = serverAuthChannel()) return ch;
+    return channels_.empty() ? nullptr : channels_.front().get();
+}
+
 bool MessageBus::startConnection(CommChannel::ConnectionReadyCallback onReady) {
     if (channels_.empty()) {
         ESP_LOGE(TAG, "No channels configured");
@@ -104,6 +109,36 @@ void MessageBus::subscribeTaskStateInfoSync(int taskTypeUid, TaskBase* taskInsta
     for (auto& ch : channels_) {
         ch->subscribeTaskStateInfoSync(deviceUuid_, taskTypeUid, taskInstance);
     }
+}
+
+Result MessageBus::publishLogBatch(const std::string& cbor) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return Result(false, "No channels");
+    return ch->publishLogBatch(deviceUuid_, cbor);
+}
+
+Result MessageBus::publishDeviceEvent(const std::string& cbor) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return Result(false, "No channels");
+    return ch->publishDeviceEvent(deviceUuid_, cbor);
+}
+
+Result MessageBus::publishStatus(const std::string& jsonPayload, bool retain) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return Result(false, "No channels");
+    return ch->publishStatus(deviceUuid_, jsonPayload, retain);
+}
+
+void MessageBus::subscribeAck(std::function<void(const std::string&)> callback) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return;
+    ch->subscribeAck(deviceUuid_, std::move(callback));
+}
+
+void MessageBus::subscribeLogConfig(std::function<void(const std::string&)> callback) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return;
+    ch->subscribeLogConfig(deviceUuid_, std::move(callback));
 }
 
 }

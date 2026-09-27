@@ -77,3 +77,48 @@ menu "Croniot logging (croniot::log)"
             "guardar todo" default.
 
 endmenu
+
+menu "Croniot telemetry uplink (croniot::telemetry)"
+
+    config CRONIOT_UPLINK_TASK_STACK_SIZE
+        int "croniot_uplink drain task stack size (bytes)"
+        default 4096
+
+    config CRONIOT_UPLINK_TASK_PRIORITY
+        int "croniot_uplink drain task priority"
+        default 4
+        help
+            Above croniot_log's drain task (default 1, see the logging
+            menu) but below anything latency-critical - sending a batch
+            can block briefly on the MQTT publish mutex.
+
+    config CRONIOT_UPLINK_MAX_BATCH_RECORDS
+        int "Max records per uplink batch"
+        default 32
+
+    config CRONIOT_UPLINK_MAX_BATCH_BYTES
+        int "Max raw frame bytes per uplink batch"
+        default 4096
+
+    config CRONIOT_UPLINK_ACK_TIMEOUT_MS
+        int "Milliseconds to wait for an application-level ack before the first retry"
+        default 30000
+        help
+            Plan §5 point 5. This is the ack wait, not a network timeout -
+            the MQTT publish itself returning success only means the
+            broker (or, over BLE, nothing yet) has it; Journal::ack() is
+            what actually confirms the server persisted it.
+
+    config CRONIOT_UPLINK_BACKOFF_CAP_MS
+        int "Backoff cap between retries (ms)"
+        default 300000
+
+    config CRONIOT_UPLINK_MAX_ATTEMPTS
+        int "Attempts before a batch's link is marked degraded and retries pause"
+        default 8
+        help
+            The batch's data is never dropped from the Journal on give-up
+            - only this *attempt* stops retrying immediately; the next
+            serviceOnce() pass picks the same unacked range back up.
+
+endmenu

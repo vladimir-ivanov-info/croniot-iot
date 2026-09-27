@@ -75,6 +75,37 @@ public:
         subscribeTaskStateInfoSyncCalls++;
     }
 
+    Result publishLogBatch(const std::string& deviceUuid, const std::string& cbor) override {
+        publishLogBatchCalls++;
+        lastLogBatch = cbor;
+        return Result(true, "");
+    }
+
+    Result publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) override {
+        publishDeviceEventCalls++;
+        lastDeviceEvent = cbor;
+        return Result(true, "");
+    }
+
+    Result publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
+                          bool retain) override {
+        publishStatusCalls++;
+        lastStatusRetain = retain;
+        return Result(true, "");
+    }
+
+    void subscribeAck(const std::string& deviceUuid,
+                       std::function<void(const std::string&)> callback) override {
+        subscribeAckCalls++;
+        ackCallback = std::move(callback);
+    }
+
+    void subscribeLogConfig(const std::string& deviceUuid,
+                             std::function<void(const std::string&)> callback) override {
+        subscribeLogConfigCalls++;
+        logConfigCallback = std::move(callback);
+    }
+
     // Test configuration.
     bool connectsSuccessfully = true;
 
@@ -93,6 +124,16 @@ public:
     int lastSensorUid = -1;
     int lastSubscribedTaskTypeUid = -1;
     ConnectionReadyCallback onReadyCallback;
+    int publishLogBatchCalls = 0;
+    int publishDeviceEventCalls = 0;
+    int publishStatusCalls = 0;
+    int subscribeAckCalls = 0;
+    int subscribeLogConfigCalls = 0;
+    std::string lastLogBatch;
+    std::string lastDeviceEvent;
+    bool lastStatusRetain = false;
+    std::function<void(const std::string&)> ackCallback;
+    std::function<void(const std::string&)> logConfigCallback;
 
 private:
     bool supportsAuth_;

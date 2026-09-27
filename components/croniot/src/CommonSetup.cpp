@@ -14,6 +14,7 @@
 #include "comm/BleChannel.h"
 #include "comm/MessageBus.h"
 #include "comm/RemoteChannel.h"
+#include "telemetry/Uplink.h"
 
 static const char* TAG = "CommonSetup";
 
@@ -94,6 +95,12 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
         if (croniot::MessageBus::instance().startMessaging()) {
             SensorsController::instance().init();
             TaskController::instance().init();
+            // Only from here on does MessageBus actually have a
+            // connected channel to drain through - croniot::log::init()
+            // (main.cpp's first line) installs the hook and mounts the
+            // Journal long before this, on purpose, so nothing captured
+            // before authentication is lost (plan §10's two-step init).
+            croniot::telemetry::Uplink::instance().start();
         } else {
             ESP_LOGE(TAG, "Could not start messaging channel");
         }
