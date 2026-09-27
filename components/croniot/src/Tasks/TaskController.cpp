@@ -9,7 +9,7 @@
 
 void TaskController::init(){
 
-    ESP_LOGE("TaskController", "Tasks total: %d", tasks.size());
+    ESP_LOGI("TaskController", "Tasks total: %d", tasks.size());
     //Important to declare before creating the tasks!
     progressUpdateQueue = xQueueCreate(10, sizeof(TaskProgressUpdate*));
     if (progressUpdateQueue == nullptr) {
@@ -19,10 +19,10 @@ void TaskController::init(){
     
     for(TaskBase *task : tasks){
         task->init();
-        ESP_LOGE("TaskController", "init done");
+        ESP_LOGI("TaskController", "init done");
 
         task->run();
-        ESP_LOGE("TaskController", "task->run %d", task->getUid());
+        ESP_LOGI("TaskController", "task->run %d", task->getUid());
     }
 
     xTaskCreate(taskFunction, "TaskController", 4096, this, 5, &taskHandle);
@@ -77,10 +77,13 @@ void TaskController::taskProgressUpdateFunction(void* pvParameters) {
             std::string message = taskProgressUpdate->toJson();
 
             int64_t t1 = esp_timer_get_time();
-            croniot::MessageBus::instance().publishTaskProgressUpdate(message);
+            Result publishResult = croniot::MessageBus::instance().publishTaskProgressUpdate(message);
             int64_t t2 = esp_timer_get_time();
 
-            ESP_LOGW("TaskController", "TIMING: toJson=%lldus publish=%lldus total=%lldus | %s",
+            if (!publishResult.success) {
+                ESP_LOGW("TaskController", "publishTaskProgressUpdate failed: %s", publishResult.message.c_str());
+            }
+            ESP_LOGD("TaskController", "TIMING: toJson=%lldus publish=%lldus total=%lldus | %s",
                      (t1-t0), (t2-t1), (t2-t0), message.c_str());
         }
     }
@@ -171,7 +174,7 @@ void TaskController::processMessageTaskData(int taskTypeUid, const std::string& 
     int64_t tBeforeEnqueue = esp_timer_get_time();
     enqueueTaskProgressUpdate(update);
     int64_t tAfterEnqueue = esp_timer_get_time();
-    ESP_LOGW("TaskController", "TIMING processMessageTaskData: parse=%lldus enqueue=%lldus",
+    ESP_LOGD("TaskController", "TIMING processMessageTaskData: parse=%lldus enqueue=%lldus",
              (tBeforeEnqueue-tStart), (tAfterEnqueue-tBeforeEnqueue));
 
 

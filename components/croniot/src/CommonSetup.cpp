@@ -86,7 +86,7 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
         authenticated = true;
         ESP_LOGI(TAG, "No server-auth channel, skipping server authentication");
     }
-    ESP_LOGI(TAG, "\n\n\n###AUTHENTICATED WITH SERVER: %s", authenticated ? "true" : "false");
+    ESP_LOGI(TAG, "Authenticated with server: %s", authenticated ? "true" : "false");
 
     CurrentDateTimeController::instance().run();
 
