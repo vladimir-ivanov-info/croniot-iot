@@ -62,24 +62,27 @@ int LogRouter::vprintfHook(const char* fmt, va_list args) {
         // through to whatever handled log lines before us.
         return invokeHook(self.previousHook_, fmt, args);
     }
+    size_t clampedLen = static_cast<size_t>(len) < sizeof(buf) ? static_cast<size_t>(len) : sizeof(buf) - 1;
 
-    ParsedLine parsed = parseEspLogLine(std::string(buf, static_cast<size_t>(len) < sizeof(buf) ? len : sizeof(buf) - 1));
-    if (!parsed.valid) {
+    // parseEspLogLineFast()/redactInPlace() (not parseEspLogLine()/redact())
+    // deliberately: this hook runs on whatever task called ESP_LOGx,
+    // including ESP-IDF's own small internal tasks (WiFi driver, lwIP...),
+    // and the std::string-based versions do several heap allocations per
+    // call. That combination (extra stack depth + heap churn on a task
+    // whose stack ESP-IDF sized for its own lightweight default vprintf)
+    // was the confirmed root cause of a real on-device crash: garbled log
+    // output during WiFi init immediately followed by a Guru Meditation
+    // Load access fault in the WiFi driver task.
+    LogRecord record{};
+    if (!parseEspLogLineFast(buf, clampedLen, record)) {
         // Not our v1 "<L> (<uptime>) <tag>: <msg>" shape (e.g. a raw
         // printf from third-party code) - pass it through unchanged
         // rather than dropping it. `args` hasn't been consumed yet (only
         // `argsCopy` was), so it's still valid for this call.
         return invokeHook(self.previousHook_, fmt, args);
     }
-
-    std::string redactedMessage = self.redactor_.redact(parsed.message);
-
-    LogRecord record{};
-    record.uptimeMs = parsed.uptimeMs;
-    record.level = parsed.level;
+    self.redactor_.redactInPlace(record.message, sizeof(record.message));
     record.repeatCount = 0;
-    record.setTag(parsed.tag.c_str());
-    record.setMessage(redactedMessage.c_str());
 
     portENTER_CRITICAL(&self.lock_);
     record.seq = self.nextSeq_++;
