@@ -18,16 +18,25 @@ thread_local bool g_sinkWriteActive = false;
 // without needing the heap - this is a stack buffer, never allocated.
 constexpr size_t kLineBufferSize = 256;
 
-// Small variadic shim: vprintf_like_t takes (const char*, va_list), and
-// the only way to hand a hook a *new* va_list from non-variadic code is
-// through an actual variadic call site.
-int invokeHook(vprintf_like_t hook, const char* fmt, ...) {
-    if (!hook) return 0;
-    va_list args;
-    va_start(args, fmt);
-    int result = hook(fmt, args);
-    va_end(args);
-    return result;
+// `vprintf_like_t` is already `int(*)(const char*, va_list)` - the exact
+// shape of vprintfHook's own `args` parameter, so forwarding it to
+// `previousHook_` needs nothing more than a direct call.
+//
+// A previous version of this file routed that call through a variadic
+// shim (`invokeHook(hook, fmt, ...)`, passing `args` itself as "a"
+// variadic argument, then doing a fresh `va_start` inside to try to
+// rebuild a va_list from it). That doesn't reconstruct the original
+// arguments: a va_list has no portable representation as "one more
+// variadic argument" to a *different* variadic function, so the va_start
+// inside the shim read whatever bytes happened to follow on the stack -
+// garbage, not the real (level, uptime, tag, ...) arguments ESP-IDF's
+// LOG_FORMAT expects. It happened to go unexercised until a WiFi-driver
+// log line that doesn't match croniot::log's v1 shape hit the fallback
+// path for the first time on real hardware, and crashed with a Guru
+// Meditation Load access fault (strlen() inside vfprintf, called on a
+// garbage "tag" pointer reconstructed from the shim's bogus va_list).
+int callPreviousHook(vprintf_like_t hook, const char* fmt, va_list args) {
+    return hook ? hook(fmt, args) : 0;
 }
 }  // namespace
 
@@ -60,7 +69,7 @@ int LogRouter::vprintfHook(const char* fmt, va_list args) {
     if (len < 0) {
         // Formatting itself failed: nothing sane to parse or redact, fall
         // through to whatever handled log lines before us.
-        return invokeHook(self.previousHook_, fmt, args);
+        return callPreviousHook(self.previousHook_, fmt, args);
     }
     size_t clampedLen = static_cast<size_t>(len) < sizeof(buf) ? static_cast<size_t>(len) : sizeof(buf) - 1;
 
@@ -79,7 +88,7 @@ int LogRouter::vprintfHook(const char* fmt, va_list args) {
         // printf from third-party code) - pass it through unchanged
         // rather than dropping it. `args` hasn't been consumed yet (only
         // `argsCopy` was), so it's still valid for this call.
-        return invokeHook(self.previousHook_, fmt, args);
+        return callPreviousHook(self.previousHook_, fmt, args);
     }
     self.redactor_.redactInPlace(record.message, sizeof(record.message));
     record.repeatCount = 0;
