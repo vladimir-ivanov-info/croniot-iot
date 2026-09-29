@@ -16,6 +16,7 @@
 #include "log/Journal.h"
 #include "log/Log.h"
 #include "log/NoinitRing.h"
+#include "network/connection_provider/NetworkConnectionProvider.h"
 #include "telemetry/Uplink.h"
 
 namespace croniot::health {
@@ -87,8 +88,26 @@ void Health::reportOnce() {
     memNet.largestFreeBlockBytes = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     memNet.uptimeSeconds = static_cast<uint64_t>(esp_timer_get_time() / 1000000);
 
+    // esp_wifi_sta_get_ap_info() is only safe to call once the WiFi driver
+    // has actually finished esp_wifi_init()/esp_wifi_start() - calling it
+    // while the driver is still uninitialized (or mid esp_wifi_deinit()/
+    // reinit, as WifiNetworkConnectionController::init() does on its own
+    // task, racing this one) doesn't return a clean error, it dereferences
+    // the driver's still-null internal state and crashes (Guru Meditation
+    // Load access fault). Real on-device crash: Health::run() calls
+    // reportOnce() immediately on task start, with no synchronization
+    // against WiFi setup running concurrently on another task.
+    // connectedToNetwork() is the transport-agnostic signal that init()
+    // has long since finished (it only ever flips true from the WIFI_EVENT
+    // handler, after esp_wifi_start()), so gating on it is always safe -
+    // it just means RSSI reads as "no signal yet" until the first real
+    // connection, which is also the semantically correct default.
+    auto* connection = NetworkConnectionProvider::get();
     wifi_ap_record_t apInfo{};
-    memNet.rssi = esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK ? apInfo.rssi : kNoRssi;
+    memNet.rssi = (connection && connection->connectedToNetwork() &&
+                   esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK)
+                      ? apInfo.rssi
+                      : kNoRssi;
     memNet.wifiReconnects = croniot::log::Counters::instance().get("wifi_reconnect");
     memNet.logsDropped = croniot::log::NoinitRing::droppedCount();
 
