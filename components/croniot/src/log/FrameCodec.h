@@ -48,6 +48,53 @@ public:
     }
 };
 
+// Streaming counterpart to countFrames(): fed a segment file in chunks of
+// any size, counts its complete frames and where the last one ends, without
+// ever holding more than one chunk. Journal uses it at boot to rebuild the
+// open segment's cursor from the file itself (see
+// Journal::recoverOpenSegment()); a trailing frame cut short by a power loss
+// shows up as totalBytes() > validBytes().
+class FrameScanner {
+public:
+    void feed(const uint8_t* data, size_t len) {
+        size_t i = 0;
+        while (i < len) {
+            if (payloadRemaining_ > 0) {
+                size_t take = payloadRemaining_ < len - i ? payloadRemaining_ : len - i;
+                i += take;
+                totalBytes_ += take;
+                payloadRemaining_ -= take;
+                if (payloadRemaining_ == 0) completeFrame();
+                continue;
+            }
+            prefix_[prefixHave_++] = data[i++];
+            ++totalBytes_;
+            if (prefixHave_ == 2) {
+                prefixHave_ = 0;
+                payloadRemaining_ = static_cast<size_t>(prefix_[0]) | (static_cast<size_t>(prefix_[1]) << 8);
+                if (payloadRemaining_ == 0) completeFrame();
+            }
+        }
+    }
+
+    uint32_t completeFrames() const { return completeFrames_; }
+    size_t validBytes() const { return validBytes_; }
+    size_t totalBytes() const { return totalBytes_; }
+
+private:
+    void completeFrame() {
+        ++completeFrames_;
+        validBytes_ = totalBytes_;
+    }
+
+    uint8_t prefix_[2] = {0, 0};
+    uint8_t prefixHave_ = 0;
+    size_t payloadRemaining_ = 0;
+    uint32_t completeFrames_ = 0;
+    size_t validBytes_ = 0;
+    size_t totalBytes_ = 0;
+};
+
 }  // namespace croniot::log
 
 #endif

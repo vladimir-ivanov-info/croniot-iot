@@ -41,20 +41,15 @@ struct SegmentRecord {
 // survivability, Journal is what drains the ring into something that
 // outlives even a power-on reset.
 //
-// Known scoped gap, deliberately not solved here: the index file is only
-// persisted at rotation boundaries (every 64 KB - see rotateIfNeeded() in
-// Journal.cpp), never per record, matching the plan's "nunca en cada
-// escritura" wear rule (§3.10/§8's WriteAccounting note). A crash between
-// two rotations therefore reboots with a *stale* nextSeq for whichever
-// segment was still open, and fresh post-reboot records can end up
-// reusing `seq` values already physically written earlier in that same
-// segment file. This is harmless under the plan's own dedup key
-// `(deviceUuid, bootId, stream, seq)` - two records only collide if they
-// also share `bootId`, and a crash always changes that - but Journal
-// does not yet plumb a bootId through at all (Tanda D's uplink is the
-// first consumer that actually needs one on the wire). Flagged here
-// rather than solved now to avoid guessing at Tanda D's eventual bootId
-// source before it exists.
+// Invariant: a record's seq is its position in its segment
+// (segment.oldestSeq + frame index). readFrom() numbers Uplink batches by
+// position while the server acks by the seq embedded in each record, so the
+// two must never drift apart. The index file is only saved on rotation, ack
+// and reclaim, never per record (the plan's "nunca en cada escritura" wear
+// rule), so after a reboot its view of the open segment is stale; loadIndex()
+// therefore rebuilds that segment's nextSeq/size from the file itself
+// (recoverOpenSegment()), and a seq is only consumed once its frame is
+// actually on disk (writeFrame()).
 class Journal {
 public:
     static Journal& instance();
@@ -192,6 +187,8 @@ private:
                    const char* partitionLabel, const char* filePrefix);
     void loadIndex(StreamState& state);
     void saveIndex(const StreamState& state);
+    void recoverOpenSegment(StreamState& state);
+    bool writeFrame(StreamState& state, const std::vector<uint8_t>& bytes);
     void appendToStream(StreamState& state, Stream stream, const LogRecord& record);
     void rotateIfNeeded(StreamState& state, Stream stream);
     void reclaimMount(StreamState& state, const char* partitionLabel,
