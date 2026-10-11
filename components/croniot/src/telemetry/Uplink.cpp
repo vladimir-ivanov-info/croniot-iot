@@ -72,6 +72,14 @@ constexpr uint32_t kMaxAttempts = 8;
 // see UplinkScheduler::pickNext().
 constexpr uint64_t kDataStarvationMs = 5 * 60 * 1000;
 
+// Same idea one priority level up: Events always outranks Logs when
+// neither is in flight, so a device producing Events continuously (each
+// batch acked quickly, immediately replaced by the next one) could
+// starve Logs indefinitely even though nothing is actually stuck. A
+// tighter quota than Data's - Logs is normally the higher-volume stream,
+// so letting it wait as long as Data would risks a much bigger backlog.
+constexpr uint64_t kLogsStarvationMs = 60 * 1000;
+
 constexpr TickType_t kPollIntervalTicks = pdMS_TO_TICKS(200);
 
 uint64_t nowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
@@ -190,7 +198,7 @@ void Uplink::serviceOnce() {
         backlogs.push_back({stream, hasPending, slot.active, ageMs});
     }
 
-    auto pick = UplinkScheduler::pickNext(backlogs, kDataStarvationMs);
+    auto pick = UplinkScheduler::pickNext(backlogs, kDataStarvationMs, kLogsStarvationMs);
     if (!pick) return;
 
     InFlightBatch& slot = inFlight_[index(*pick)];
