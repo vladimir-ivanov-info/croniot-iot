@@ -9,6 +9,8 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "sdkconfig.h"
 
 #include "CborWriter.h"
@@ -41,6 +43,32 @@ constexpr uint32_t kMaxBytesPerDay = CONFIG_CRONIOT_LOG_JOURNAL_MAX_BYTES_PER_DA
 #else
 constexpr uint32_t kMaxBytesPerDay = 0;  // 0 = no budget (plan: hardBudget off by default)
 #endif
+
+// Journal is shared by several tasks with no other synchronization:
+// croniot_log (appendLog/maybeReclaim), any task that emits an event
+// (appendEvent), croniot_sensor_flush (appendRaw), croniot_uplink
+// (readFrom) and mqtt_worker (ack). Without this lock, readFrom()
+// fclose()s a stream's `openFile` while the writer task is inside
+// fwrite()/fflush() on that same FILE*; newlib then deletes the FILE's
+// recursive mutex under a task that is waiting on it. Seen on device as
+// either an abort ("assert failed: xTaskRemoveFromEventList ...
+// (pxUnblockedTCB)" from _fwrite_r in croniot_log) or as tasks blocked
+// forever on that dead mutex. Recursive because appendToStream() and
+// reclaimMount() re-enter via appendEvent(). Static storage: no heap,
+// and the function-local static makes creation itself race-free.
+SemaphoreHandle_t journalMutex() {
+    static StaticSemaphore_t storage;
+    static SemaphoreHandle_t handle = xSemaphoreCreateRecursiveMutexStatic(&storage);
+    return handle;
+}
+
+class JournalLock {
+public:
+    JournalLock() { xSemaphoreTakeRecursive(journalMutex(), portMAX_DELAY); }
+    ~JournalLock() { xSemaphoreGiveRecursive(journalMutex()); }
+    JournalLock(const JournalLock&) = delete;
+    JournalLock& operator=(const JournalLock&) = delete;
+};
 
 uint64_t uptimeSeconds() { return static_cast<uint64_t>(esp_timer_get_time() / 1000000); }
 
@@ -91,6 +119,7 @@ Journal& Journal::instance() {
 }
 
 void Journal::init() {
+    JournalLock lock;
     if (initialized_) return;
     initialized_ = true;
 
@@ -425,13 +454,18 @@ void Journal::reclaimMount(StreamState& state, const char* partitionLabel,
     if (!result.segmentIdsToDelete.empty()) saveIndex(state);
 }
 
-void Journal::appendLog(const LogRecord& record) { appendToStream(logsState_, Stream::Logs, record); }
+void Journal::appendLog(const LogRecord& record) {
+    JournalLock lock;
+    appendToStream(logsState_, Stream::Logs, record);
+}
 
 void Journal::appendEvent(const LogRecord& record) {
+    JournalLock lock;
     appendToStream(eventsState_, Stream::Events, record);
 }
 
 std::optional<uint32_t> Journal::appendRaw(Stream stream, const uint8_t* data, size_t len) {
+    JournalLock lock;
     StreamState& state = stateFor(stream);
     if (!state.mounted) return std::nullopt;
 
@@ -453,6 +487,7 @@ std::optional<uint32_t> Journal::appendRaw(Stream stream, const uint8_t* data, s
 }
 
 void Journal::maybeReclaim() {
+    JournalLock lock;
     if (logsState_.mounted) reclaimMount(logsState_, logsState_.partitionLabel, UINT64_MAX);
     if (dataState_.mounted) reclaimMount(dataState_, dataState_.partitionLabel, kDataRetentionSeconds);
     // Events is deliberately never passed to reclaimMount() from here:
@@ -474,29 +509,35 @@ std::string Journal::segmentPath(const StreamState& state, uint32_t segmentId) {
 }
 
 void Journal::ack(Stream stream, uint32_t upToSeqInclusive) {
+    JournalLock lock;
     StreamState& state = stateFor(stream);
     state.cursor.ack(upToSeqInclusive);
     saveIndex(state);
 }
 
 bool Journal::streamAvailable(Stream stream) const {
+    JournalLock lock;
     return const_cast<Journal*>(this)->stateFor(stream).mounted;
 }
 
 uint32_t Journal::nextSeq(Stream stream) const {
+    JournalLock lock;
     return const_cast<Journal*>(this)->stateFor(stream).cursor.nextSeq();
 }
 
 uint64_t Journal::lifetimeBytesWritten(Stream stream) const {
+    JournalLock lock;
     return writeAccounting_.lifetimeBytes(stream);
 }
 
 uint32_t Journal::firstUnackedSeq(Stream stream) const {
+    JournalLock lock;
     const JournalCursor& cursor = const_cast<Journal*>(this)->stateFor(stream).cursor;
     return cursor.hasAck() ? cursor.ackedSeq() + 1 : 0;
 }
 
 std::optional<Journal::PartitionUsage> Journal::partitionUsage(Stream stream) const {
+    JournalLock lock;
     StreamState& state = const_cast<Journal*>(this)->stateFor(stream);
     if (!state.mounted) return std::nullopt;
     size_t total = 0, used = 0;
@@ -515,6 +556,7 @@ uint64_t Journal::partitionLifetimeBytes(const char* partitionLabel) const {
 }
 
 double Journal::estimatedWearPercent(Stream stream, uint32_t enduranceCycles) const {
+    JournalLock lock;
     auto usage = partitionUsage(stream);
     if (!usage) return -1.0;
     const char* label = const_cast<Journal*>(this)->stateFor(stream).partitionLabel;
@@ -524,6 +566,9 @@ double Journal::estimatedWearPercent(Stream stream, uint32_t enduranceCycles) co
 
 std::optional<Journal::RawBatch> Journal::readFrom(Stream stream, uint32_t fromSeqInclusive,
                                                      size_t maxBytes, size_t maxRecords) {
+    // Also what makes the fclose(state.openFile) below safe: the writer
+    // that owns that handle can't be mid-fwrite while we hold this.
+    JournalLock lock;
     StreamState& state = stateFor(stream);
     if (!state.mounted || maxRecords == 0) return std::nullopt;
 

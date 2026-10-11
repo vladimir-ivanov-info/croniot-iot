@@ -5,6 +5,7 @@
 #include <memory>
 #include "WifiMqttController.h"
 #include "comm/MessageBus.h"
+#include "log/BootCounter.h"
 #include "network/NetworkManager.h"
 #include "Tasks/TaskController.h"
 
@@ -33,16 +34,14 @@ bool WifiMqttController::init() {
     // retained, the moment it notices this client is gone (an unclean
     // disconnect, not a graceful one) - the server-side signal that a
     // device went offline without saying so itself. `birth` (the
-    // opposite: {boot, reset_reason, fw} on connect) is a normal
-    // retained publish from the uplink layer once connected, not
-    // something the MQTT client config can express.
-    static std::string lwtTopicStr;
-    lwtTopicStr = "/iot_to_server/status/" + croniot::MessageBus::instance().getDeviceUuid();
+    // opposite) is a normal retained publish on the same topic, sent
+    // from MQTT_EVENT_CONNECTED - see publishBirth().
+    lwtTopicStr_ = "/iot_to_server/status/" + croniot::MessageBus::instance().getDeviceUuid();
 
     esp_mqtt_client_config_t config = {};
     config.broker.address.uri = uriStr.c_str();  // ⚠️ Usar 'broker.address.uri' en ESP-IDF 5.x
 
-    config.session.last_will.topic  = lwtTopicStr.c_str();
+    config.session.last_will.topic  = lwtTopicStr_.c_str();
     config.session.last_will.msg    = "offline";
     config.session.last_will.qos    = 1;
     config.session.last_will.retain = 1;
@@ -162,6 +161,7 @@ void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t b
                 esp_mqtt_client_subscribe(controller->mqttClient, pair.first.c_str(), 1);
                 ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
             }
+            controller->publishBirth();
             break;
 
         case MQTT_EVENT_DISCONNECTED:
@@ -225,10 +225,30 @@ void WifiMqttController::WorkerTask(void* arg) {
     }
 }
 
+// Every (re)connect, not just the first: once the LWT has published
+// "offline" (retained) after a dropped session, nothing else overwrites
+// it - a birth sent only at boot would leave the device looking offline
+// forever after its first reconnect, even while it keeps publishing.
+// Calls the client directly instead of publishWithOptions(), like the
+// re-subscribes above: this runs on the MQTT task, and `mutex` may be
+// held by a task that is itself waiting on that same MQTT task.
+void WifiMqttController::publishBirth() {
+    std::string birth = "{\"boot\":" + std::to_string(croniot::log::BootCounter::current()) + "}";
+    int msgId = esp_mqtt_client_publish(mqttClient, lwtTopicStr_.c_str(), birth.data(),
+                                        static_cast<int>(birth.size()), /*qos=*/1, /*retain=*/1);
+    if (msgId < 0) {
+        ESP_LOGW(TAG, "birth status publish failed, msgId: %d", msgId);
+    }
+}
+
 void WifiMqttController::processInWorker(const std::string& topic,
                                          const std::string& payload) {
-    
-    ESP_LOGI(TAG, "MQTT: %s   %s", topic.c_str(), payload.c_str());
+    // DEBUG, not INFO: this runs for every inbound message, including the
+    // server's `/ack` for each uplink batch. At INFO each ack produced a
+    // log line, which became the next logs batch, whose ack produced
+    // another line - a self-sustaining loop (~3 batches/s on an idle
+    // device, ~90% of all journaled logs).
+    ESP_LOGD(TAG, "MQTT: %s   %s", topic.c_str(), payload.c_str());
 
     // Checked before the task-command routing below: a raw-callback
     // topic (e.g. `/server/<uuid>/ack`, `/server/<uuid>/log_config`)

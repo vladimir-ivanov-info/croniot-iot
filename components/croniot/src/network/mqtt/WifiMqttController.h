@@ -33,8 +33,13 @@ private:
     std::map<std::string, TaskBase*> topicTaskStateInfoSyncMap;
     std::map<std::string, std::function<void(const std::string&)>> topicRawCallbackMap;
 
+    // LWT and birth share this topic. A member, not a local: the client
+    // config keeps the c_str() pointer for its whole lifetime.
+    std::string lwtTopicStr_;
+
     static void mqttEventHandler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data);
     void handleMessage(const std::string& topic, const std::string& payload);
+    void publishBirth();
 
     bool reconnecting = false;
     uint64_t lastDisconnectedTimestamp = 0;

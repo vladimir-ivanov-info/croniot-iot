@@ -108,21 +108,9 @@ void Uplink::start() {
     croniot::MessageBus::instance().subscribeAck(
         [](const std::string& json) { Uplink::instance().onAck(json); });
 
-    // Birth (plan §4): the online counterpart to the LWT "offline"
-    // WifiMqttController::init() already registers on this same status
-    // topic. Deliberately minimal for PR12 - `reset_reason`/`fw` need the
-    // same ResetCause mapping IncidentRecovery.cpp already has and
-    // esp_app_get_description(), neither exposed outside their own
-    // translation units yet; left as a documented follow-up rather than
-    // duplicating that mapping here.
-    CJsonPtr birth(cJSON_CreateObject());
-    cJSON_AddNumberToObject(birth.get(), "boot", croniot::log::BootCounter::current());
-    char* birthStr = cJSON_PrintUnformatted(birth.get());
-    Result birthResult = croniot::MessageBus::instance().publishStatus(birthStr, /*retain=*/true);
-    if (!birthResult.success) {
-        ESP_LOGW(TAG, "birth status publish failed: %s", birthResult.message.c_str());
-    }
-    cJSON_free(birthStr);
+    // Birth (plan §4) is no longer published here: it has to go out on
+    // every MQTT (re)connect, not once at start, so it lives next to the
+    // LWT in WifiMqttController::publishBirth().
 
     xTaskCreate(&Uplink::run, "croniot_uplink", kStackSize, nullptr, kPriority, &g_taskHandle);
 }
