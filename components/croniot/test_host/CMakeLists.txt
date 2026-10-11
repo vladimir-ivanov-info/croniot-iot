@@ -31,6 +31,10 @@ add_executable(host_tests
     ${CRONIOT_SRC}/log/Span.cpp
     ${CRONIOT_SRC}/log/Context.cpp
     ${CRONIOT_SRC}/log/StateMachine.cpp
+    ${CRONIOT_SRC}/log/SpaceReclaimer.cpp
+    ${CRONIOT_SRC}/log/FrameAccumulator.cpp
+    ${CRONIOT_SRC}/health/HealthReport.cpp
+    ${CRONIOT_SRC}/log/RemoteLogConfig.cpp
 
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
@@ -45,6 +49,19 @@ add_executable(host_tests
     ContextTest.cpp
     CountersTest.cpp
     StateMachineTest.cpp
+    JournalCursorTest.cpp
+    SpaceReclaimerTest.cpp
+    WriteAccountingTest.cpp
+    IncidentDetectorTest.cpp
+    FrameCodecTest.cpp
+    FrameAccumulatorTest.cpp
+    RetryPolicyTest.cpp
+    UplinkSchedulerTest.cpp
+    BatchEnvelopeTest.cpp
+    HealthReportTest.cpp
+    RemoteLogConfigTest.cpp
+    SensorReportBufferTest.cpp
+    SensorBatchEncoderTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

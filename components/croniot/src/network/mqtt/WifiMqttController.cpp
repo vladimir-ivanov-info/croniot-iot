@@ -4,6 +4,7 @@
 
 #include <memory>
 #include "WifiMqttController.h"
+#include "comm/MessageBus.h"
 #include "network/NetworkManager.h"
 #include "Tasks/TaskController.h"
 
@@ -25,13 +26,26 @@ bool WifiMqttController::init() {
     static std::string uriStr;
     uriStr = "mqtt://" + NetworkManager::instance().serverAddress + ":" + std::to_string(NetworkManager::instance().serverMqttPort);
     //uriStr = "mqtt://57.131.29.79:" + std::to_string(NetworkManager::instance().serverMqttPort);
-    //uriStr = 
+    //uriStr =
    // ESP_LOGI(TAG, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s", uriStr.c_str());
 
+    // Last Will and Testament (plan §4): the broker publishes this,
+    // retained, the moment it notices this client is gone (an unclean
+    // disconnect, not a graceful one) - the server-side signal that a
+    // device went offline without saying so itself. `birth` (the
+    // opposite: {boot, reset_reason, fw} on connect) is a normal
+    // retained publish from the uplink layer once connected, not
+    // something the MQTT client config can express.
+    static std::string lwtTopicStr;
+    lwtTopicStr = "/iot_to_server/status/" + croniot::MessageBus::instance().getDeviceUuid();
 
     esp_mqtt_client_config_t config = {};
     config.broker.address.uri = uriStr.c_str();  // ⚠️ Usar 'broker.address.uri' en ESP-IDF 5.x
 
+    config.session.last_will.topic  = lwtTopicStr.c_str();
+    config.session.last_will.msg    = "offline";
+    config.session.last_will.qos    = 1;
+    config.session.last_will.retain = 1;
 
     config.task.priority   = 10;
     config.task.stack_size = 8192;
@@ -58,8 +72,13 @@ bool WifiMqttController::init() {
 }
 
 Result WifiMqttController::publish(const std::string& topic, const std::string& message) {
+    return publishWithOptions(topic, message, /*qos=*/2, /*retain=*/false);
+}
 
-    //ESP_LOGI(TAG, "PUBLISHING MQTT %s %s ...", topic.c_str(), message.c_str());
+Result WifiMqttController::publishWithOptions(const std::string& topic, const std::string& message,
+                                                int qos, bool retain) {
+
+    //ESP_LOGI(TAG, "PUBLISHING MQTT %s (%zu bytes) ...", topic.c_str(), message.size());
 
     if (!mqttClient){
         ESP_LOGI(TAG, "MQTT not initialized...");
@@ -69,8 +88,12 @@ Result WifiMqttController::publish(const std::string& topic, const std::string& 
     }
 
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        // Explicit length, not 0 (=strlen): a CBOR payload can contain
+        // embedded null bytes, and relying on strlen would silently
+        // truncate it at the first one.
         int msgId = esp_mqtt_client_publish(
-            mqttClient, topic.c_str(), message.c_str(), 0, 2, 0
+            mqttClient, topic.c_str(), message.data(), static_cast<int>(message.size()), qos,
+            retain ? 1 : 0
         );
         xSemaphoreGive(mutex);
         if (msgId >= 0) {
@@ -106,6 +129,16 @@ void WifiMqttController::registerCallbackTaskStateInfoSync(const std::string& to
     }
 }
 
+void WifiMqttController::registerRawCallback(const std::string& topic,
+                                              std::function<void(const std::string&)> callback) {
+    topicRawCallbackMap[topic] = std::move(callback);
+
+    if (mqttClient) {
+        int msgId = esp_mqtt_client_subscribe(mqttClient, topic.c_str(), 1);
+        ESP_LOGI(TAG, "Subscribed to topic: %s (msgId: %d)", topic.c_str(), msgId);
+    }
+}
+
 void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
     auto* controller = static_cast<WifiMqttController*>(handler_args);
     esp_mqtt_event_handle_t event = static_cast<esp_mqtt_event_handle_t>(event_data);
@@ -122,6 +155,10 @@ void WifiMqttController::mqttEventHandler(void* handler_args, esp_event_base_t b
                 ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
             }
             for (const auto& pair : controller->topicTaskStateInfoSyncMap) {
+                esp_mqtt_client_subscribe(controller->mqttClient, pair.first.c_str(), 1);
+                ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
+            }
+            for (const auto& pair : controller->topicRawCallbackMap) {
                 esp_mqtt_client_subscribe(controller->mqttClient, pair.first.c_str(), 1);
                 ESP_LOGI(TAG, "Re-subscribed to: %s", pair.first.c_str());
             }
@@ -192,7 +229,18 @@ void WifiMqttController::processInWorker(const std::string& topic,
                                          const std::string& payload) {
     
     ESP_LOGI(TAG, "MQTT: %s   %s", topic.c_str(), payload.c_str());
-    
+
+    // Checked before the task-command routing below: a raw-callback
+    // topic (e.g. `/server/<uuid>/ack`, `/server/<uuid>/log_config`)
+    // has no numeric taskTypeUid as its last segment, so it must never
+    // fall into that parsing path - this exact-match lookup is what
+    // keeps the two kinds of topic from colliding.
+    auto rawIt = topicRawCallbackMap.find(topic);
+    if (rawIt != topicRawCallbackMap.end()) {
+        rawIt->second(payload);
+        return;
+    }
+
     const auto subTopics = StringUtil::split(topic, "/");
     if (subTopics.empty()) {
         ESP_LOGW(TAG, "Bad topic: '%s'", topic.c_str());

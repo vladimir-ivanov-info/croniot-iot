@@ -38,6 +38,39 @@ public:
     virtual void subscribeTaskStateInfoSync(const std::string& deviceUuid,
                                             int taskTypeUid,
                                             TaskBase* taskInstance) = 0;
+
+    // Telemetry uplink (plan §4/§5). `cbor` is a pre-built
+    // telemetry::encodeBatchEnvelope()/LogRecord-shaped payload (opaque
+    // binary here - this interface stays payload-agnostic, same as
+    // publishSensorData's jsonValue). BLE's implementation of these is a
+    // documented no-op until Tanda E's LOG_CONFIG/LOG_STREAM
+    // characteristics land (plan §5 point 11: over BLE the phone is the
+    // destination, not a relay to this same protocol).
+    virtual Result publishLogBatch(const std::string& deviceUuid, const std::string& cbor) = 0;
+    virtual Result publishDeviceEvent(const std::string& deviceUuid, const std::string& cbor) = 0;
+
+    // Batched sensor readings (plan §7.2/§12.6 PR18). `cbor` is a
+    // pre-built Sensors/SensorBatchEncoder.h payload, drained through
+    // the exact same Journal Data-stream/Uplink ack/retry pipeline as
+    // publishLogBatch/publishDeviceEvent above - this is its wire
+    // delivery, not a separate protocol.
+    virtual Result publishSensorBatch(const std::string& deviceUuid, const std::string& cbor) = 0;
+
+    // Retained status/birth publish (plan §4: LWT sets "offline",
+    // this sets the online/birth counterpart - `{boot, reset_reason, fw}`
+    // as the jsonPayload).
+    virtual Result publishStatus(const std::string& deviceUuid, const std::string& jsonPayload,
+                                  bool retain) = 0;
+
+    // Application-level ack (plan §5 point 3 - NOT the MQTT PUBACK) and
+    // remote log-level control (plan §4). Both are plain JSON, so they
+    // go through the same generic-callback plumbing as MqttController::
+    // registerRawCallback() rather than the TaskBase*-shaped
+    // subscribeTaskCommand/subscribeTaskStateInfoSync above.
+    virtual void subscribeAck(const std::string& deviceUuid,
+                              std::function<void(const std::string& json)> callback) = 0;
+    virtual void subscribeLogConfig(const std::string& deviceUuid,
+                                    std::function<void(const std::string& json)> callback) = 0;
 };
 
 }

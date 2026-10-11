@@ -14,6 +14,9 @@
 #include "comm/BleChannel.h"
 #include "comm/MessageBus.h"
 #include "comm/RemoteChannel.h"
+#include "health/Health.h"
+#include "log/Log.h"
+#include "telemetry/Uplink.h"
 
 static const char* TAG = "CommonSetup";
 
@@ -55,6 +58,13 @@ bool CommonSetup::setup(const croniot::CroniotConfig& config) {
     auto& bus = MessageBus::instance();
     bus.setDeviceUuid(config.deviceUuid);
 
+    // Deliberately not gated on server auth / a connected channel (unlike
+    // Uplink::start() below) - a health report that never leaves the
+    // Journal is still useful (readable later, e.g. over BLE), and "this
+    // device never got online" is itself the kind of thing worth
+    // reporting, not a reason to withhold the report.
+    croniot::health::Health::instance().start();
+
     for (auto type : config.channels) {
         switch (type) {
             case ChannelType::Remote:
@@ -94,6 +104,25 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
         if (croniot::MessageBus::instance().startMessaging()) {
             SensorsController::instance().init();
             TaskController::instance().init();
+            // Only from here on does MessageBus actually have a
+            // connected channel to drain through - croniot::log::init()
+            // (main.cpp's first line) installs the hook and mounts the
+            // Journal long before this, on purpose, so nothing captured
+            // before authentication is lost (plan §10's two-step init).
+            croniot::telemetry::Uplink::instance().start();
+
+            // Remote log-level control (plan §11.5/§12.5 PR15's device
+            // side): the server publishes retained JSON on
+            // /server/<uuid>/log_config, this device applies it via the
+            // exact same LevelResolver "remote" tier setLevel()/init()
+            // already feed. Subscribed here, not from Log::init(), for
+            // the same reason as Uplink::start() above.
+            croniot::MessageBus::instance().subscribeLogConfig([](const std::string& json) {
+                Result result = croniot::log::applyRemoteConfig(json);
+                if (!result.success) {
+                    ESP_LOGW(TAG, "Ignoring remote log_config: %s", result.message.c_str());
+                }
+            });
         } else {
             ESP_LOGE(TAG, "Could not start messaging channel");
         }

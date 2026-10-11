@@ -44,4 +44,123 @@ menu "Croniot logging (croniot::log)"
         default 1
         depends on CRONIOT_LOG_ENABLE
 
+    config CRONIOT_LOG_JOURNAL_LOW_WATER_MARK_PERCENT
+        int "Journal low water mark (% free, reclaim starts)"
+        default 20
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §8.8. Below this much free space on the `journal` or
+            `archive` partition, the space reclaimer starts freeing
+            already-acked segments, then Data past its retention window,
+            then Logs oldest-first.
+
+    config CRONIOT_LOG_JOURNAL_CRITICAL_MARK_PERCENT
+        int "Journal critical mark (% free, breaches retention window)"
+        default 5
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §8.8. Only below this much free space will the reclaimer
+            breach the Data retention window itself (the last resort
+            before Journal::maybeReclaim() reports degradedToRamOnly).
+            Incidents, events and coredump are never sacrificed regardless
+            of how critical space gets.
+
+    config CRONIOT_LOG_FLASH_ENDURANCE_CYCLES
+        int "Assumed NOR flash erase-cycle endurance per sector, for the wear estimate"
+        default 100000
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §3.10. Feeds the health report's wear-percent estimate
+            (bytes written / partition size, as a fraction of this many
+            erase cycles). A conservative default for typical ESP32 NOR
+            flash - the estimate itself is documented as a lower bound
+            (LittleFS's own write amplification isn't accounted for), so
+            the alarm threshold in the health consumer should have margin.
+
+    config CRONIOT_LOG_JOURNAL_MAX_BYTES_PER_DAY
+        int "Journal max bytes/day per stream before a write_budget_exceeded event (0 = no budget)"
+        default 0
+        depends on CRONIOT_LOG_ENABLE
+        help
+            Plan §3.10: "el presupuesto avisa, no recorta" - hardBudget is
+            not implemented, so crossing this only raises one
+            write_budget_exceeded event per stream per day. 0 (the
+            default) disables the check entirely, matching the plan's
+            "guardar todo" default.
+
+endmenu
+
+menu "Croniot telemetry uplink (croniot::telemetry)"
+
+    config CRONIOT_UPLINK_TASK_STACK_SIZE
+        int "croniot_uplink drain task stack size (bytes)"
+        default 4096
+
+    config CRONIOT_UPLINK_TASK_PRIORITY
+        int "croniot_uplink drain task priority"
+        default 4
+        help
+            Above croniot_log's drain task (default 1, see the logging
+            menu) but below anything latency-critical - sending a batch
+            can block briefly on the MQTT publish mutex.
+
+    config CRONIOT_UPLINK_MAX_BATCH_RECORDS
+        int "Max records per uplink batch"
+        default 32
+
+    config CRONIOT_UPLINK_MAX_BATCH_BYTES
+        int "Max raw frame bytes per uplink batch"
+        default 4096
+
+    config CRONIOT_UPLINK_ACK_TIMEOUT_MS
+        int "Milliseconds to wait for an application-level ack before the first retry"
+        default 30000
+        help
+            Plan §5 point 5. This is the ack wait, not a network timeout -
+            the MQTT publish itself returning success only means the
+            broker (or, over BLE, nothing yet) has it; Journal::ack() is
+            what actually confirms the server persisted it.
+
+    config CRONIOT_UPLINK_BACKOFF_CAP_MS
+        int "Backoff cap between retries (ms)"
+        default 300000
+
+    config CRONIOT_UPLINK_MAX_ATTEMPTS
+        int "Attempts before a batch's link is marked degraded and retries pause"
+        default 8
+        help
+            The batch's data is never dropped from the Journal on give-up
+            - only this *attempt* stops retrying immediately; the next
+            serviceOnce() pass picks the same unacked range back up.
+
+endmenu
+
+menu "Croniot health report (croniot::health)"
+
+    config CRONIOT_HEALTH_ENABLE
+        bool "Enable the periodic health report"
+        default y
+        help
+            Plan §11.4/§12.4 (PR13). Kill switch: when disabled,
+            Health::start() creates no task and emits no events - nothing
+            else in this SDK depends on it.
+
+    config CRONIOT_HEALTH_INTERVAL_SEC
+        int "Seconds between health reports"
+        default 300
+        depends on CRONIOT_HEALTH_ENABLE
+
+    config CRONIOT_HEALTH_TASK_STACK_SIZE
+        int "croniot_health task stack size (bytes)"
+        default 4096
+        depends on CRONIOT_HEALTH_ENABLE
+
+    config CRONIOT_HEALTH_TASK_PRIORITY
+        int "croniot_health task priority"
+        default 1
+        depends on CRONIOT_HEALTH_ENABLE
+        help
+            Deliberately low - a stalled health report is a missed
+            metric, not something worth preempting real work for.
+
 endmenu

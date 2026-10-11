@@ -165,6 +165,7 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
         ESP_LOGW(TAG_WIFI, "Disconnected (reason=%d)", event ? event->reason : -1);
         inst.setWifiConnected(false);
         NetworkManager::instance().setConnectedToWifi(false);
+        CRONIOT_COUNT(wifi_reconnect);
 
         int shift = std::min(inst.reconnectAttempt, kMaxBackoffShift);
         int64_t delayUs = std::min(kBaseReconnectDelayUs << shift, kMaxReconnectDelayUs);

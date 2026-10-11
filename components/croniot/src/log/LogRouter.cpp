@@ -18,16 +18,25 @@ thread_local bool g_sinkWriteActive = false;
 // without needing the heap - this is a stack buffer, never allocated.
 constexpr size_t kLineBufferSize = 256;
 
-// Small variadic shim: vprintf_like_t takes (const char*, va_list), and
-// the only way to hand a hook a *new* va_list from non-variadic code is
-// through an actual variadic call site.
-int invokeHook(vprintf_like_t hook, const char* fmt, ...) {
-    if (!hook) return 0;
-    va_list args;
-    va_start(args, fmt);
-    int result = hook(fmt, args);
-    va_end(args);
-    return result;
+// `vprintf_like_t` is already `int(*)(const char*, va_list)` - the exact
+// shape of vprintfHook's own `args` parameter, so forwarding it to
+// `previousHook_` needs nothing more than a direct call.
+//
+// A previous version of this file routed that call through a variadic
+// shim (`invokeHook(hook, fmt, ...)`, passing `args` itself as "a"
+// variadic argument, then doing a fresh `va_start` inside to try to
+// rebuild a va_list from it). That doesn't reconstruct the original
+// arguments: a va_list has no portable representation as "one more
+// variadic argument" to a *different* variadic function, so the va_start
+// inside the shim read whatever bytes happened to follow on the stack -
+// garbage, not the real (level, uptime, tag, ...) arguments ESP-IDF's
+// LOG_FORMAT expects. It happened to go unexercised until a WiFi-driver
+// log line that doesn't match croniot::log's v1 shape hit the fallback
+// path for the first time on real hardware, and crashed with a Guru
+// Meditation Load access fault (strlen() inside vfprintf, called on a
+// garbage "tag" pointer reconstructed from the shim's bogus va_list).
+int callPreviousHook(vprintf_like_t hook, const char* fmt, va_list args) {
+    return hook ? hook(fmt, args) : 0;
 }
 }  // namespace
 
@@ -60,26 +69,29 @@ int LogRouter::vprintfHook(const char* fmt, va_list args) {
     if (len < 0) {
         // Formatting itself failed: nothing sane to parse or redact, fall
         // through to whatever handled log lines before us.
-        return invokeHook(self.previousHook_, fmt, args);
+        return callPreviousHook(self.previousHook_, fmt, args);
     }
+    size_t clampedLen = static_cast<size_t>(len) < sizeof(buf) ? static_cast<size_t>(len) : sizeof(buf) - 1;
 
-    ParsedLine parsed = parseEspLogLine(std::string(buf, static_cast<size_t>(len) < sizeof(buf) ? len : sizeof(buf) - 1));
-    if (!parsed.valid) {
+    // parseEspLogLineFast()/redactInPlace() (not parseEspLogLine()/redact())
+    // deliberately: this hook runs on whatever task called ESP_LOGx,
+    // including ESP-IDF's own small internal tasks (WiFi driver, lwIP...),
+    // and the std::string-based versions do several heap allocations per
+    // call. That combination (extra stack depth + heap churn on a task
+    // whose stack ESP-IDF sized for its own lightweight default vprintf)
+    // was the confirmed root cause of a real on-device crash: garbled log
+    // output during WiFi init immediately followed by a Guru Meditation
+    // Load access fault in the WiFi driver task.
+    LogRecord record{};
+    if (!parseEspLogLineFast(buf, clampedLen, record)) {
         // Not our v1 "<L> (<uptime>) <tag>: <msg>" shape (e.g. a raw
         // printf from third-party code) - pass it through unchanged
         // rather than dropping it. `args` hasn't been consumed yet (only
         // `argsCopy` was), so it's still valid for this call.
-        return invokeHook(self.previousHook_, fmt, args);
+        return callPreviousHook(self.previousHook_, fmt, args);
     }
-
-    std::string redactedMessage = self.redactor_.redact(parsed.message);
-
-    LogRecord record{};
-    record.uptimeMs = parsed.uptimeMs;
-    record.level = parsed.level;
+    self.redactor_.redactInPlace(record.message, sizeof(record.message));
     record.repeatCount = 0;
-    record.setTag(parsed.tag.c_str());
-    record.setMessage(redactedMessage.c_str());
 
     portENTER_CRITICAL(&self.lock_);
     record.seq = self.nextSeq_++;

@@ -14,10 +14,20 @@
 static const char *TAG = "Storage";
 
 Storage::Storage() {
-    // Montar LittleFS al crear la instancia
+    // Montar LittleFS al crear la instancia.
+    //
+    // partition_label EXPLÍCITO a propósito: con NULL, esp_littlefs busca
+    // la PRIMERA partición de subtipo "littlefs" en partitions.csv, en el
+    // orden en que aparece en la tabla (esp_littlefs.c: esp_littlefs_init,
+    // rama "Find first partition with littlefs subtype"). Desde que la
+    // PR4 introdujo `archive` (littlefs, para el stream `data` del
+    // journal) ANTES que `littlefs` en la tabla, ese NULL habría montado
+    // silenciosamente `archive` aquí en vez de la partición de
+    // credenciales - un bug real, no solo hipotético, que la PR4 dejó
+    // latente hasta esta PR.
     esp_vfs_littlefs_conf_t conf = {
         .base_path = "/littlefs",
-        .partition_label = NULL,
+        .partition_label = "littlefs",
         .format_if_mount_failed = true,
         .dont_mount = false
     };

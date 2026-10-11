@@ -1,6 +1,7 @@
 #ifndef CRONIOT_LOG_REDACTOR_H
 #define CRONIOT_LOG_REDACTOR_H
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,8 @@ public:
 
     void clear() { secrets_.clear(); }
 
+    // Host-side/off-hot-path use only - allocates a new std::string per
+    // call. See redactInPlace() for why the on-device hook can't use this.
     std::string redact(const std::string& line) const {
         if (secrets_.empty()) return line;
 
@@ -38,6 +41,45 @@ public:
             }
         }
         return result;
+    }
+
+    // Zero-allocation counterpart to redact(), for the on-device hot path
+    // (LogRouter::vprintfHook, operating directly on LogRecord::message).
+    // `buf` is a NUL-terminated C string of capacity `bufSize`; every
+    // match is overwritten with "***" in place via memmove, no heap
+    // allocation. If a registered secret is shorter than "***" (under 3
+    // chars - not a realistic secret length, but handled rather than
+    // risking an overflow), the replacement's growth is clamped to what
+    // still fits in `bufSize` instead of writing past the buffer.
+    void redactInPlace(char* buf, size_t bufSize) const {
+        if (secrets_.empty() || bufSize == 0) return;
+        constexpr char kMask[] = "***";
+        constexpr size_t kMaskLen = 3;
+
+        for (const auto& secret : secrets_) {
+            if (secret.empty()) continue;
+            size_t secretLen = secret.size();
+            size_t len = std::strlen(buf);
+            size_t pos = 0;
+            while (pos + secretLen <= len) {
+                if (std::memcmp(buf + pos, secret.data(), secretLen) != 0) {
+                    ++pos;
+                    continue;
+                }
+                size_t maskLen = kMaskLen;
+                if (kMaskLen > secretLen) {
+                    size_t growth = kMaskLen - secretLen;
+                    size_t available = bufSize - 1 - len;
+                    if (growth > available) maskLen = secretLen + available;
+                }
+                size_t tailLen = len - (pos + secretLen);
+                std::memmove(buf + pos + maskLen, buf + pos + secretLen, tailLen);
+                std::memcpy(buf + pos, kMask, maskLen);
+                len = pos + maskLen + tailLen;
+                buf[len] = '\0';
+                pos += maskLen;
+            }
+        }
     }
 
 private:

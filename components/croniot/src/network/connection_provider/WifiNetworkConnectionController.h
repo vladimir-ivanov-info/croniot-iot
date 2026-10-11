@@ -28,6 +28,7 @@
 #include "esp_timer.h"
 
 #include "ConnectionTypes.h"
+#include "log/Counters.h"
 
 static const char* TAG_WIFI = "WIFI_CTRL";
 

@@ -9,6 +9,7 @@
 #include "ConsoleSink.h"
 #include "Detail.h"
 #include "Level.h"
+#include "Result.h"
 
 namespace croniot::log {
 
@@ -54,6 +55,31 @@ void setLevel(const std::string& tag, Level level, uint32_t ttlSec = 0);
 
 // Forwards to the module's Redactor instance (owned by LogRouter).
 void registerSecret(const std::string& secret);
+
+// Applies a remote log_config JSON (plan §3.4/Fase 4, PR15's device
+// side - see RemoteLogConfig.h for the exact reduced shape this
+// accepts). Wired to MessageBus::subscribeLogConfig()'s callback by the
+// project, not by this SDK - see CommonSetup.cpp.
+//
+// A permanent entry (no `ttlSec`, or `ttlSec: 0`) replaces the whole
+// persisted remote layer (LevelResolver's `remote` tier - clearRemote()
+// runs first, so an old permanent tag override that the new config
+// doesn't mention actually clears rather than lingering) and is written
+// to `/journal/log_config.json`, surviving a reboot. A `ttlSec > 0`
+// entry goes into LevelResolver's *separate* TTL tier instead - RAM
+// only, deliberately not persisted: expressing "this many seconds
+// remain" correctly across a reboot needs an absolute instant, which
+// needs a real clock (SNTP isn't built yet - see the plan's own Fase 6).
+// If the device reboots mid-TTL, the override is simply gone, back to
+// the persisted/code layers underneath - a known, accepted simplification
+// rather than the "uptime acumulado + nº de arranques" workaround the
+// plan sketches for a case this SDK doesn't need to solve yet.
+//
+// Always emits a `log_config_applied` event (plan §11.5) on success,
+// win or lose against the persisted layer, so the server has positive
+// confirmation the device actually applied what it sent - not just that
+// the MQTT publish succeeded.
+Result applyRemoteConfig(const std::string& json);
 
 class SinkHandle {
 public:

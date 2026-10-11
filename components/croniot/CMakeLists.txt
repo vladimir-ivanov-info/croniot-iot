@@ -19,6 +19,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parameters/StatefulParameterSwitch.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parameters/StatefulParameterSlider.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/Sensor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/SensorsController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Sensors/SensorType.cpp
 
@@ -43,6 +44,7 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/RemoteChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/BleChannelLogic.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comm/LoggingCommChannel.cpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LineParser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Span.cpp
@@ -53,7 +55,18 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogRouter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/LogTask.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/ConsoleSink.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/SpaceReclaimer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/FrameAccumulator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Journal.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/IncidentRecovery.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/BootCounter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/log/RemoteLogConfig.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/log/Log.cpp
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/telemetry/Uplink.cpp
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/health/HealthReport.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/health/Health.cpp
 
     INCLUDE_DIRS
         src
@@ -68,6 +81,8 @@ idf_component_register(
         src/network/mqtt
         src/network/sim7600
         src/log
+        src/telemetry
+        src/health
 
     REQUIRES
         nvs_flash
@@ -78,4 +93,7 @@ idf_component_register(
         driver
         esp_wifi
         bt
+        espcoredump
+        esp_app_format
+        esp_timer
 )

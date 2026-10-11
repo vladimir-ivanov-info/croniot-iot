@@ -40,14 +40,30 @@ struct LogRecord {
     void setTag(const char* value) { copyTruncated(tag, sizeof(tag), value); }
     void setMessage(const char* value) { copyTruncated(message, sizeof(message), value); }
 
+    // Length-bounded counterparts, for callers holding a (pointer, length)
+    // span into a buffer that isn't NUL-terminated at the span's end (e.g.
+    // a slice of a stack buffer) - avoids the strlen() a `const char*`
+    // overload would need, and avoids the caller having to allocate a
+    // temporary just to NUL-terminate first. Used by LineParser's
+    // allocation-free parseEspLogLineFast().
+    void setTag(const char* value, size_t len) { copyTruncated(tag, sizeof(tag), value, len); }
+    void setMessage(const char* value, size_t len) { copyTruncated(message, sizeof(message), value, len); }
+
 private:
     static void copyTruncated(char* dst, size_t dstSize, const char* src) {
         if (!src) {
             dst[0] = '\0';
             return;
         }
-        size_t len = std::strlen(src);
-        if (len > dstSize - 1) len = dstSize - 1;
+        copyTruncated(dst, dstSize, src, std::strlen(src));
+    }
+
+    static void copyTruncated(char* dst, size_t dstSize, const char* src, size_t srcLen) {
+        if (!src) {
+            dst[0] = '\0';
+            return;
+        }
+        size_t len = srcLen > dstSize - 1 ? dstSize - 1 : srcLen;
         std::memcpy(dst, src, len);
         dst[len] = '\0';
     }
