@@ -1,5 +1,7 @@
 #include "Journal.h"
 
+#include <unistd.h>
+
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -55,12 +57,12 @@ uint32_t uptimeDayIndex() { return static_cast<uint32_t>(uptimeSeconds() / 86400
 // decoder (this codebase only has CborWriter, by design - see
 // CborWriter.h), while still being unambiguous for a future tool that
 // wants to read a segment file back.
-void writeLengthPrefixed(FILE* file, const std::vector<uint8_t>& bytes) {
+bool writeLengthPrefixed(FILE* file, const std::vector<uint8_t>& bytes) {
     uint16_t len = static_cast<uint16_t>(bytes.size());
     uint8_t header[2] = {static_cast<uint8_t>(len & 0xFF), static_cast<uint8_t>(len >> 8)};
-    fwrite(header, 1, sizeof(header), file);
-    fwrite(bytes.data(), 1, bytes.size(), file);
-    fflush(file);
+    bool ok = fwrite(header, 1, sizeof(header), file) == sizeof(header);
+    ok = ok && fwrite(bytes.data(), 1, bytes.size(), file) == bytes.size();
+    return fflush(file) == 0 && ok;
 }
 
 // Journal's own bookkeeping file, one per mount - NOT the wire/black-box
@@ -180,6 +182,10 @@ void Journal::loadIndex(StreamState& state) {
         state.segments[0] = first;
         state.segmentCount = 1;
     }
+
+    // The index is only saved on rotation/ack/reclaim, so its view of the
+    // open segment is stale after any reboot - the file is the source of truth.
+    recoverOpenSegment(state);
 }
 
 void Journal::saveIndex(const StreamState& state) {
@@ -211,26 +217,82 @@ void Journal::saveIndex(const StreamState& state) {
     fclose(file);
 }
 
-void Journal::appendToStream(StreamState& state, Stream stream, const LogRecord& record) {
-    if (!state.mounted) return;
-
-    LogRecord stamped = record;
-    uint32_t seq = state.cursor.assignSeq();
-    stamped.seq = seq;
-
-    std::vector<uint8_t> bytes = encodeLogRecord(stamped);
-
+bool Journal::writeFrame(StreamState& state, const std::vector<uint8_t>& bytes) {
+    uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
     if (!state.openFile) {
-        uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
-        std::string name = segmentPath(state, openId);
-        state.openFile = fopen(name.c_str(), "ab");
+        std::string path = segmentPath(state, openId);
+        state.openFile = fopen(path.c_str(), "ab");
         if (!state.openFile) {
-            ESP_LOGW(TAG, "could not open segment '%s'", name.c_str());
-            return;
+            ESP_LOGW(TAG, "could not open segment '%s'", path.c_str());
+            return false;
         }
     }
 
-    writeLengthPrefixed(static_cast<FILE*>(state.openFile), bytes);
+    if (writeLengthPrefixed(static_cast<FILE*>(state.openFile), bytes)) return true;
+
+    // A half-written frame would misalign every frame appended after it, so
+    // cut the file back to its last known-good length (e.g. partition full).
+    std::string path = segmentPath(state, openId);
+    ESP_LOGW(TAG, "write to '%s' failed, rolling back to %" PRIu32 " bytes", path.c_str(),
+             state.openSegmentBytes);
+    fclose(static_cast<FILE*>(state.openFile));
+    state.openFile = nullptr;
+    if (truncate(path.c_str(), static_cast<off_t>(state.openSegmentBytes)) != 0) {
+        ESP_LOGW(TAG, "rollback truncate of '%s' failed", path.c_str());
+    }
+    return false;
+}
+
+void Journal::recoverOpenSegment(StreamState& state) {
+    SegmentRecord& open = state.segments[state.segmentCount - 1];
+    std::string path = segmentPath(state, open.segmentId);
+
+    FrameScanner scanner;
+    if (FILE* file = fopen(path.c_str(), "rb")) {
+        uint8_t chunk[256];
+        size_t got;
+        while ((got = fread(chunk, 1, sizeof(chunk), file)) > 0) scanner.feed(chunk, got);
+        fclose(file);
+    }
+
+    if (scanner.totalBytes() > scanner.validBytes()) {
+        ESP_LOGW(TAG, "stream '%s': dropping %u bytes of a frame cut short in '%s'", state.filePrefix,
+                 static_cast<unsigned>(scanner.totalBytes() - scanner.validBytes()), path.c_str());
+        if (truncate(path.c_str(), static_cast<off_t>(scanner.validBytes())) != 0) {
+            ESP_LOGW(TAG, "truncate of '%s' failed", path.c_str());
+        }
+    }
+
+    uint32_t frames = scanner.completeFrames();
+    uint32_t nextSeq = open.oldestSeq + frames;
+    uint32_t validBytes = static_cast<uint32_t>(scanner.validBytes());
+    if (nextSeq != state.cursor.nextSeq() || validBytes != state.openSegmentBytes) {
+        ESP_LOGI(TAG, "stream '%s': rebuilt open segment from file: nextSeq %" PRIu32 " -> %" PRIu32
+                      ", %" PRIu32 " bytes",
+                 state.filePrefix, state.cursor.nextSeq(), nextSeq, validBytes);
+    }
+
+    open.newestSeq = frames > 0 ? nextSeq - 1 : open.oldestSeq;
+    open.sizeBytes = validBytes;
+    state.openSegmentBytes = validBytes;
+    state.cursor.restore(nextSeq, state.cursor.oldestSeq(),
+                         state.cursor.hasAck() ? std::optional<uint32_t>(state.cursor.ackedSeq()) : std::nullopt);
+}
+
+void Journal::appendToStream(StreamState& state, Stream stream, const LogRecord& record) {
+    if (!state.mounted) return;
+
+    // The seq is only consumed once the frame is on disk: readFrom() numbers
+    // records by their position in the segment, so every assigned seq must
+    // correspond to exactly one frame, or the seq embedded in later records
+    // drifts away from the position Uplink reports it at.
+    LogRecord stamped = record;
+    uint32_t seq = state.cursor.nextSeq();
+    stamped.seq = seq;
+
+    std::vector<uint8_t> bytes = encodeLogRecord(stamped);
+    if (!writeFrame(state, bytes)) return;
+    state.cursor.assignSeq();
 
     uint32_t written = static_cast<uint32_t>(bytes.size() + 2);
     state.openSegmentBytes += written;
@@ -373,20 +435,10 @@ std::optional<uint32_t> Journal::appendRaw(Stream stream, const uint8_t* data, s
     StreamState& state = stateFor(stream);
     if (!state.mounted) return std::nullopt;
 
-    uint32_t seq = state.cursor.assignSeq();
+    // Same rule as appendToStream(): no seq without a frame on disk.
     std::vector<uint8_t> bytes(data, data + len);
-
-    if (!state.openFile) {
-        uint32_t openId = state.segments[state.segmentCount - 1].segmentId;
-        std::string name = segmentPath(state, openId);
-        state.openFile = fopen(name.c_str(), "ab");
-        if (!state.openFile) {
-            ESP_LOGW(TAG, "could not open segment '%s'", name.c_str());
-            return std::nullopt;
-        }
-    }
-
-    writeLengthPrefixed(static_cast<FILE*>(state.openFile), bytes);
+    if (!writeFrame(state, bytes)) return std::nullopt;
+    uint32_t seq = state.cursor.assignSeq();
 
     uint32_t written = static_cast<uint32_t>(bytes.size() + 2);
     state.openSegmentBytes += written;
