@@ -118,7 +118,10 @@ void Uplink::start() {
     CJsonPtr birth(cJSON_CreateObject());
     cJSON_AddNumberToObject(birth.get(), "boot", croniot::log::BootCounter::current());
     char* birthStr = cJSON_PrintUnformatted(birth.get());
-    croniot::MessageBus::instance().publishStatus(birthStr, /*retain=*/true);
+    Result birthResult = croniot::MessageBus::instance().publishStatus(birthStr, /*retain=*/true);
+    if (!birthResult.success) {
+        ESP_LOGW(TAG, "birth status publish failed: %s", birthResult.message.c_str());
+    }
     cJSON_free(birthStr);
 
     xTaskCreate(&Uplink::run, "croniot_uplink", kStackSize, nullptr, kPriority, &g_taskHandle);

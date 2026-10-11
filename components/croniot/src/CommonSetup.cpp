@@ -117,8 +117,12 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
             // exact same LevelResolver "remote" tier setLevel()/init()
             // already feed. Subscribed here, not from Log::init(), for
             // the same reason as Uplink::start() above.
-            croniot::MessageBus::instance().subscribeLogConfig(
-                [](const std::string& json) { croniot::log::applyRemoteConfig(json); });
+            croniot::MessageBus::instance().subscribeLogConfig([](const std::string& json) {
+                Result result = croniot::log::applyRemoteConfig(json);
+                if (!result.success) {
+                    ESP_LOGW(TAG, "Ignoring remote log_config: %s", result.message.c_str());
+                }
+            });
         } else {
             ESP_LOGE(TAG, "Could not start messaging channel");
         }
