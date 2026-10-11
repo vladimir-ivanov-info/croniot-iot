@@ -25,15 +25,28 @@ struct StreamBacklog {
 // is never picked again until that resolves (ack or give-up).
 class UplinkScheduler {
 public:
-    // `dataStarvationMs`: if Stream::Data has been waiting at least this
-    // long while a higher-priority stream would otherwise keep winning,
-    // Data is picked instead - the anti-starvation quota. Returns nullopt
-    // if nothing is eligible (every stream is empty or already in flight).
+    // `dataStarvationMs`/`logsStarvationMs`: if Stream::Data/Stream::Logs
+    // has been waiting at least this long while a higher-priority stream
+    // would otherwise keep winning, it's picked instead - the
+    // anti-starvation quota, same idea applied one priority level up.
+    // Without this, a device producing Events continuously (each ack
+    // just making room for the next one, so Events is rarely `inFlight`
+    // long enough for Logs's turn) could starve Logs indefinitely even
+    // though neither stream is ever stuck - `inFlight` alone only
+    // protects a stream *currently* being sent, not one that's simply
+    // always out-prioritized by a never-empty higher stream. Returns
+    // nullopt if nothing is eligible (every stream is empty or in flight).
     static std::optional<croniot::log::Stream> pickNext(const std::vector<StreamBacklog>& backlogs,
-                                                          uint64_t dataStarvationMs) {
+                                                          uint64_t dataStarvationMs,
+                                                          uint64_t logsStarvationMs = UINT64_MAX) {
         const StreamBacklog* data = find(backlogs, croniot::log::Stream::Data);
         if (data && data->hasPending && !data->inFlight && data->oldestPendingAgeMs >= dataStarvationMs) {
             return croniot::log::Stream::Data;
+        }
+
+        const StreamBacklog* logs = find(backlogs, croniot::log::Stream::Logs);
+        if (logs && logs->hasPending && !logs->inFlight && logs->oldestPendingAgeMs >= logsStarvationMs) {
+            return croniot::log::Stream::Logs;
         }
 
         for (auto stream : {croniot::log::Stream::Events, croniot::log::Stream::Logs,

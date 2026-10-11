@@ -62,3 +62,63 @@ TEST(UplinkSchedulerTest, MissingStreamEntryTreatedAsEmpty) {
     };
     EXPECT_EQ(UplinkScheduler::pickNext(backlogs, 60000), Stream::Data);
 }
+
+// A continuously-refilled Events stream never goes `inFlight` long - each
+// batch's own `inFlight` window is where Logs would normally sneak in,
+// but if Events is never empty, plain priority order alone starves Logs
+// forever. The `logsStarvationMs` quota is what prevents that.
+TEST(UplinkSchedulerTest, LogsStarvationOverridesEventsOnceAgedEnough) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Logs, true, false, /*oldestPendingAgeMs=*/70000},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, /*dataStarvationMs=*/999999999,
+                                         /*logsStarvationMs=*/60000),
+              Stream::Logs);
+}
+
+TEST(UplinkSchedulerTest, LogsNotOldEnoughStillLosesToEvents) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Logs, true, false, /*oldestPendingAgeMs=*/10000},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, /*dataStarvationMs=*/999999999,
+                                         /*logsStarvationMs=*/60000),
+              Stream::Events);
+}
+
+TEST(UplinkSchedulerTest, StarvedLogsAlreadyInFlightDoesNotOverride) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Logs, true, /*inFlight=*/true, /*oldestPendingAgeMs=*/999999},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, /*dataStarvationMs=*/999999999,
+                                         /*logsStarvationMs=*/60000),
+              Stream::Events);
+}
+
+// Data's own starvation check still wins over Logs's when both are aged
+// enough and Data comes first in pickNext()'s checks - Data starving is
+// strictly worse (it's the stream with the longest default patience), so
+// this ordering is deliberate, not an accident of check order.
+TEST(UplinkSchedulerTest, DataStarvationCheckedBeforeLogsStarvation) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Logs, true, false, /*oldestPendingAgeMs=*/70000},
+        {Stream::Data, true, false, /*oldestPendingAgeMs=*/70000},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, /*dataStarvationMs=*/60000,
+                                         /*logsStarvationMs=*/60000),
+              Stream::Data);
+}
+
+// Callers that don't pass logsStarvationMs (the default parameter) keep
+// the pre-existing behavior exactly - no surprise fairness kicking in
+// for code that hasn't opted in.
+TEST(UplinkSchedulerTest, DefaultLogsStarvationNeverOverrides) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Logs, true, false, /*oldestPendingAgeMs=*/999999999},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, 999999999), Stream::Events);
+}

@@ -114,11 +114,11 @@ public:
     struct RawBatch {
         uint32_t firstSeq = 0;
         uint32_t count = 0;
-        std::vector<uint8_t> frames;  // `count` raw, still-length-prefixed frames, concatenated verbatim
+        std::vector<uint8_t> frames;  // `count` frame *payloads* (CBOR, 2-byte length prefixes stripped), concatenated verbatim
     };
 
     // Reads up to `maxRecords` records (capped at `maxBytes` of raw frame
-    // data, prefixes included) starting at `fromSeqInclusive`, for the
+    // payload data, length prefixes excluded) starting at `fromSeqInclusive`, for the
     // uplink to send on (see telemetry/Uplink.cpp) - never decodes a
     // single one (see FrameCodec.h). `fromSeqInclusive` is clamped up to
     // whatever is actually still on disk: if the caller asks for a seq

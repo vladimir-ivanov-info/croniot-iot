@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 
 #include "CborWriter.h"
+#include "FrameAccumulator.h"
 #include "FrameCodec.h"
 #include "SpaceReclaimer.h"
 
@@ -483,52 +484,94 @@ std::optional<Journal::RawBatch> Journal::readFrom(Stream stream, uint32_t fromS
         if (segment.sizeBytes == 0) continue;             // nothing written here yet
         if (segment.newestSeq < nextWantedSeq) continue;  // entirely already consumed/before what we want
 
+        // If this is the currently-open-for-append segment, its on-disk
+        // directory entry (size/CTZ pointers) in LittleFS is only synced
+        // on close - fflush() after each write (see writeLengthPrefixed())
+        // only flushes the C stdio buffer into LittleFS's own write
+        // buffer, not that metadata commit. A second, independent fopen()
+        // on the same path while the append handle is still open therefore
+        // sees a STALE size (0 bytes, from before this boot's writes) and
+        // silently reads nothing - no error, just an empty file - which is
+        // indistinguishable from "nothing written yet" without instrumentation.
+        // Closing the write handle here forces that sync; the next append
+        // call lazily reopens it (appendToStream()/appendRaw() both check
+        // `!state.openFile` and reopen in "ab", which continues safely at
+        // EOF - no data loss).
+        if (state.openFile && i + 1 == state.segmentCount) {
+            fclose(static_cast<FILE*>(state.openFile));
+            state.openFile = nullptr;
+        }
+
         std::string path = segmentPath(state, segment.segmentId);
         FILE* file = fopen(path.c_str(), "rb");
         if (!file) {
             ESP_LOGW(TAG, "could not open segment '%s' for reading", path.c_str());
             break;  // stop rather than silently skip a gap in the middle of a batch
         }
-        std::vector<uint8_t> fileBytes;
-        uint8_t chunk[512];
-        size_t got;
-        while ((got = fread(chunk, 1, sizeof(chunk), file)) > 0) {
-            fileBytes.insert(fileBytes.end(), chunk, chunk + got);
-        }
-        fclose(file);
 
-        // `segment.oldestSeq` is the seq of the first record physically
-        // in this file (set when the segment was created - see
-        // rotateIfNeeded()/loadIndex()). Walking frames from byte 0 and
-        // skipping any still below `nextWantedSeq` also naturally
-        // implements the "clamp up if reclamation already deleted
-        // earlier data" behavior documented on readFrom() in Journal.h:
-        // if `nextWantedSeq` is below `segment.oldestSeq`, `seq` starts
-        // already at-or-above it, so nothing gets skipped.
-        size_t offset = 0, frameStart = 0, frameLen = 0;
+        // Read this segment in small, bounded chunks instead of
+        // `fread`-ing the whole (up to kSegmentRotateBytes, 64 KB) file
+        // into one buffer up front: on a heap already under pressure
+        // from WiFi/TLS/MQTT, that up-front read's own vector growth
+        // could (and on device, did - see documentation/iot.md's trap
+        // write-up) fail a reallocation and abort() the whole firmware,
+        // since this build has C++ exceptions off (decisions/0001) and
+        // can't catch std::bad_alloc. `pending` only ever holds an
+        // in-progress (not-yet-complete) frame plus one fresh chunk -
+        // accumulateFrames() eats everything complete out of it on
+        // every iteration - so its size never scales with the
+        // segment's total size, only with `kReadChunkBytes` and the
+        // largest possible single frame (bounded by FrameCodec's
+        // 16-bit length prefix, 64 KiB).
+        // 512, not something larger: this runs on the `croniot_uplink`
+        // task, whose whole stack is only
+        // CONFIG_CRONIOT_UPLINK_TASK_STACK_SIZE bytes (4096 by default -
+        // see telemetry/Uplink.cpp) - a bigger on-stack chunk buffer
+        // here was tried and immediately stack-overflowed that task
+        // ("Guru Meditation ... Stack protection fault") on real
+        // hardware. 512 matches what the original (pre-chunking)
+        // version of this function already used safely for its own
+        // `fread` buffer.
+        constexpr size_t kReadChunkBytes = 512;
+        std::vector<uint8_t> pending;
+        uint8_t chunk[kReadChunkBytes];
         uint32_t seq = segment.oldestSeq;
-        while (FrameCodec::readNextFrame(fileBytes.data(), fileBytes.size(), offset, frameStart, frameLen)) {
-            size_t frameAbsStart = frameStart - 2;  // back up over the 2-byte length prefix
-            size_t frameTotalLen = 2 + frameLen;
+        bool limitReached = false;
+        size_t got;
+        do {
+            got = fread(chunk, 1, sizeof(chunk), file);
+            if (got > 0) pending.insert(pending.end(), chunk, chunk + got);
 
-            if (seq < nextWantedSeq) {
-                ++seq;
-                continue;
+            // `segment.oldestSeq` is the seq of the first record
+            // physically in this file (set when the segment was
+            // created - see rotateIfNeeded()/loadIndex()). Walking
+            // frames from byte 0 and skipping any still below
+            // `nextWantedSeq` also naturally implements the "clamp up
+            // if reclamation already deleted earlier data" behavior
+            // documented on readFrom() in Journal.h: if
+            // `nextWantedSeq` is below `segment.oldestSeq`, `seq`
+            // starts already at-or-above it, so nothing gets skipped.
+            //
+            // Wire format (BatchEnvelope.h): `records[]` is a CBOR
+            // array whose elements are these bytes back-to-back, so
+            // only the *payload* FrameCodec isolates (what
+            // accumulateFrames() appends) belongs in `batch.frames` -
+            // the on-disk 2-byte length prefix is a Journal-internal
+            // framing detail, not part of the record's CBOR encoding.
+            auto result = accumulateFrames(pending.data(), pending.size(), seq, nextWantedSeq, started,
+                                            batch.firstSeq, batch.frames, batch.count, maxBytes, maxRecords);
+            if (result.consumedBytes > 0) {
+                pending.erase(pending.begin(), pending.begin() + static_cast<long>(result.consumedBytes));
             }
-            if (batch.count >= maxRecords || batch.frames.size() >= maxBytes) break;
-
-            if (!started) {
-                batch.firstSeq = seq;
-                started = true;
+            if (result.limitReached) {
+                limitReached = true;
+                break;
             }
-            batch.frames.insert(batch.frames.end(), fileBytes.begin() + static_cast<long>(frameAbsStart),
-                                 fileBytes.begin() + static_cast<long>(frameAbsStart + frameTotalLen));
-            ++batch.count;
-            ++seq;
-        }
+        } while (got == sizeof(chunk));  // short read (incl. 0) == this fread hit EOF
+        fclose(file);
         nextWantedSeq = seq;
 
-        if (batch.count >= maxRecords || batch.frames.size() >= maxBytes) break;
+        if (limitReached || batch.count >= maxRecords || batch.frames.size() >= maxBytes) break;
     }
 
     if (!started) return std::nullopt;
