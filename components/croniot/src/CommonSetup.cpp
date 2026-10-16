@@ -1,8 +1,10 @@
 #include "CommonSetup.h"
 
+#include <cinttypes>
 #include <memory>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_task_wdt.h"
 
 #include "AuthenticationController.h"
@@ -16,9 +18,17 @@
 #include "comm/RemoteChannel.h"
 #include "health/Health.h"
 #include "log/Log.h"
+#include "telemetry/RetryPolicy.h"
 #include "telemetry/Uplink.h"
 
 static const char* TAG = "CommonSetup";
+
+// Retry schedule for registering with the server at boot: 5 s, doubling up
+// to 5 min, forever. The server being down when the device boots (a power
+// cut where the device comes back first) must not leave the device without
+// MQTT until someone reboots it.
+static constexpr uint64_t kAuthRetryBaseMs = 5 * 1000;
+static constexpr uint64_t kAuthRetryCapMs = 5 * 60 * 1000;
 
 namespace {
 
@@ -89,11 +99,24 @@ bool CommonSetup::setup(const croniot::CroniotConfig& config) {
 }
 
 void CommonSetup::authenticateWithServerTask(void* pvParameters) {
-    bool authenticated;
+    // Registration happens once per boot and everything after it (MQTT,
+    // sensors, tasks, uplink) depends on it, so it is retried until it
+    // succeeds instead of giving up on the first failure. Meanwhile logs,
+    // events and sensor data keep accumulating in the Journal and go out
+    // once messaging starts.
+    bool authenticated = true;
     if (croniot::MessageBus::instance().hasServerAuthChannel()) {
-        authenticated = AuthenticationController::instance().init();
+        for (uint32_t attempt = 1; !(authenticated = AuthenticationController::instance().init()); ++attempt) {
+            // Jitter from the clock's low bits, as in Uplink.cpp: enough to
+            // keep a fleet that lost power together from retrying in lockstep.
+            double jitter = static_cast<double>(esp_timer_get_time() % 1000) / 1000.0 * 0.3;
+            uint64_t delayMs = croniot::telemetry::RetryPolicy::nextDelayMs(attempt, kAuthRetryBaseMs,
+                                                                             kAuthRetryCapMs, jitter);
+            ESP_LOGW(TAG, "Server registration failed (attempt %" PRIu32 "), retrying in %" PRIu64 " s",
+                     attempt, delayMs / 1000);
+            vTaskDelay(pdMS_TO_TICKS(delayMs));
+        }
     } else {
-        authenticated = true;
         ESP_LOGI(TAG, "No server-auth channel, skipping server authentication");
     }
     ESP_LOGI(TAG, "Authenticated with server: %s", authenticated ? "true" : "false");
