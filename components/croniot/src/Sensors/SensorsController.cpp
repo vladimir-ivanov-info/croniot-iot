@@ -13,7 +13,9 @@ void SensorsController::init(){
     for(Sensor *sensor : sensors){
         sensor->run();
     }
-    xTaskCreate(&SensorsController::flushTask, "croniot_sensor_flush", 3072, nullptr, 1, nullptr);
+    // 4096, not 3072: appendRaw() can rotate a Data segment, whose
+    // saveIndex() fwrite goes deep into LittleFS.
+    xTaskCreate(&SensorsController::flushTask, "croniot_sensor_flush", 4096, nullptr, 1, nullptr);
 }
 
 void SensorsController::uninit(){

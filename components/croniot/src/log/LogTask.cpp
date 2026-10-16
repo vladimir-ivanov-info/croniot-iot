@@ -15,7 +15,7 @@ namespace {
 #ifdef CONFIG_CRONIOT_LOG_TASK_STACK_SIZE
 constexpr uint32_t kStackSize = CONFIG_CRONIOT_LOG_TASK_STACK_SIZE;
 #else
-constexpr uint32_t kStackSize = 4096;
+constexpr uint32_t kStackSize = 6144;
 #endif
 
 #ifdef CONFIG_CRONIOT_LOG_TASK_PRIORITY
@@ -91,7 +91,9 @@ void LogTask::run(void*) {
             LogRouter::instance().flushRateLimiterPending();
             lastFlush = now;
         }
-        if (now - lastReclaim >= kReclaimIntervalTicks) {
+        // A rotation on any task only flags the reclaim; it runs here,
+        // where the stack is sized for it (see Journal::rotateIfNeeded()).
+        if (Journal::instance().reclaimRequested() || now - lastReclaim >= kReclaimIntervalTicks) {
             Journal::instance().maybeReclaim();
             lastReclaim = now;
         }
