@@ -390,8 +390,14 @@ void Journal::rotateIfNeeded(StreamState& state, Stream stream) {
     // instead relieved by reclaiming Logs segments (see maybeReclaim()).
     if (stream == Stream::Events) return;
 
-    reclaimMount(state, state.partitionLabel,
-                 stream == Stream::Data ? kDataRetentionSeconds : UINT64_MAX);
+    // Only flag it: the reclaim itself (esp_littlefs_info, unlinks, and a
+    // saveIndex() whose fwrite goes deep into LittleFS) runs on
+    // croniot_log via LogTask, never here. rotateIfNeeded() runs on
+    // whatever task is appending - croniot_sensor_flush (3-4 KB stack),
+    // any task emitting an event - and reclaiming inline overflowed those
+    // stacks: a Stack protection fault on every boot once the partition
+    // dropped under the low-water mark.
+    reclaimRequested_.store(true);
 }
 
 void Journal::reclaimMount(StreamState& state, const char* partitionLabel,
@@ -488,6 +494,7 @@ std::optional<uint32_t> Journal::appendRaw(Stream stream, const uint8_t* data, s
 
 void Journal::maybeReclaim() {
     JournalLock lock;
+    reclaimRequested_.store(false);
     if (logsState_.mounted) reclaimMount(logsState_, logsState_.partitionLabel, UINT64_MAX);
     if (dataState_.mounted) reclaimMount(dataState_, dataState_.partitionLabel, kDataRetentionSeconds);
     // Events is deliberately never passed to reclaimMount() from here:

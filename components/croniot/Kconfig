@@ -36,7 +36,7 @@ menu "Croniot logging (croniot::log)"
 
     config CRONIOT_LOG_TASK_STACK_SIZE
         int "croniot_log drain task stack size (bytes)"
-        default 4096
+        default 6144
         depends on CRONIOT_LOG_ENABLE
 
     config CRONIOT_LOG_TASK_PRIORITY

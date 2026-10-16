@@ -2,6 +2,7 @@
 #define CRONIOT_LOG_JOURNAL_H
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -96,9 +97,13 @@ public:
     std::optional<uint32_t> appendRaw(Stream stream, const uint8_t* data, size_t len);
 
     // Runs SpaceReclaimer against whichever mounted partition(s) have
-    // dropped under the low water mark. Called by LogTask periodically
-    // and right after every rotation - never from the hot append path.
+    // dropped under the low water mark. Called only by LogTask (croniot_log,
+    // sized for it): periodically, and soon after a rotation asks for it
+    // via reclaimRequested() - never from the append path itself.
     void maybeReclaim();
+
+    // True after a Logs/Data rotation, until the next maybeReclaim().
+    bool reclaimRequested() const { return reclaimRequested_.load(); }
 
     // Application-level ack (plan §5 point 3) - Tanda D's uplink will
     // call this once a server commit confirms `upToSeqInclusive`. A
@@ -202,6 +207,7 @@ private:
     StreamState dataState_;
     WriteAccounting writeAccounting_;
     bool initialized_ = false;
+    std::atomic<bool> reclaimRequested_{false};
 };
 
 }  // namespace croniot::log
