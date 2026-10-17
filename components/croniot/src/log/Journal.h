@@ -192,6 +192,7 @@ private:
                    const char* partitionLabel, const char* filePrefix);
     void loadIndex(StreamState& state);
     void saveIndex(const StreamState& state);
+    void removeOrphanSegments(StreamState& state);
     void recoverOpenSegment(StreamState& state);
     bool writeFrame(StreamState& state, const std::vector<uint8_t>& bytes);
     void appendToStream(StreamState& state, Stream stream, const LogRecord& record);
