@@ -16,13 +16,18 @@ struct StreamBacklog {
     bool hasPending;         // there is at least one unacked record to send
     bool inFlight;           // a batch for this stream is already awaiting ack/retry
     uint64_t oldestPendingAgeMs;  // 0 if !hasPending
+    bool retryDue = false;   // inFlight, and its ack timeout/backoff window has expired
 };
 
 // Decides which single stream gets the next batch (plan §5 point 9:
 // "events > logs > data, con cuota mínima para data para que no se quede
 // sin turno"). Only one in-flight batch per stream at a time (plan §5
 // point 4: "un lote en vuelo por stream") - a stream already `inFlight`
-// is never picked again until that resolves (ack or give-up).
+// is only picked again once its retry is due (`retryDue`), so the caller
+// can resend that same batch or give up on it. Without that exception a
+// lost or mismatched ack left the stream in flight forever: the caller's
+// retry/give-up branch was never reached and the stream stopped draining
+// until a reboot (seen on device: Logs silent for hours while Data flowed).
 class UplinkScheduler {
 public:
     // `dataStarvationMs`/`logsStarvationMs`: if Stream::Data/Stream::Logs
@@ -35,10 +40,20 @@ public:
     // though neither stream is ever stuck - `inFlight` alone only
     // protects a stream *currently* being sent, not one that's simply
     // always out-prioritized by a never-empty higher stream. Returns
-    // nullopt if nothing is eligible (every stream is empty or in flight).
+    // nullopt if nothing is eligible (every stream is empty, or in flight
+    // with its retry not yet due).
     static std::optional<croniot::log::Stream> pickNext(const std::vector<StreamBacklog>& backlogs,
                                                           uint64_t dataStarvationMs,
                                                           uint64_t logsStarvationMs = UINT64_MAX) {
+        // A due retry goes first: it is a batch already on the wire, and
+        // the resend (or the give-up that frees the stream) can't wait on
+        // fresh batches from the other streams.
+        for (auto stream : {croniot::log::Stream::Events, croniot::log::Stream::Logs,
+                             croniot::log::Stream::Data}) {
+            const StreamBacklog* backlog = find(backlogs, stream);
+            if (backlog && backlog->inFlight && backlog->retryDue) return stream;
+        }
+
         const StreamBacklog* data = find(backlogs, croniot::log::Stream::Data);
         if (data && data->hasPending && !data->inFlight && data->oldestPendingAgeMs >= dataStarvationMs) {
             return croniot::log::Stream::Data;

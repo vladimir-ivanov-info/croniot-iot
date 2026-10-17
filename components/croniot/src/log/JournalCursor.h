@@ -41,7 +41,14 @@ public:
 
     // Application-level ack (plan §5 point 3) - never moves backwards,
     // so a stale/duplicate ack from a reconnect can't un-confirm data.
+    // Never moves past what was written either: the server acks the seq
+    // it read inside the records, so a batch carrying stale records with
+    // higher seqs (old segment files from before an index reset) would
+    // otherwise mark records not yet written as confirmed, and the stream
+    // would look empty until nextSeq caught up.
     void ack(uint32_t upToSeqInclusive) {
+        if (nextSeq_ == 0) return;  // nothing written: there is nothing to confirm
+        if (upToSeqInclusive >= nextSeq_) upToSeqInclusive = nextSeq_ - 1;
         if (!hasAck_ || upToSeqInclusive > ackedSeq_) {
             hasAck_ = true;
             ackedSeq_ = upToSeqInclusive;

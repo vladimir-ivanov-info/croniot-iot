@@ -20,12 +20,26 @@ TEST(JournalCursorTest, NoAckInitially) {
 
 TEST(JournalCursorTest, AckNeverMovesBackwards) {
     JournalCursor cursor(Stream::Data);
+    for (int i = 0; i < 30; ++i) cursor.assignSeq();
     cursor.ack(10);
     EXPECT_EQ(cursor.ackedSeq(), 10u);
     cursor.ack(5);  // stale/duplicate ack from a reconnect
     EXPECT_EQ(cursor.ackedSeq(), 10u);
     cursor.ack(20);
     EXPECT_EQ(cursor.ackedSeq(), 20u);
+}
+
+TEST(JournalCursorTest, AckPastWhatWasWrittenIsClampedToTheLastWrittenSeq) {
+    JournalCursor cursor(Stream::Logs);
+    for (int i = 0; i < 10; ++i) cursor.assignSeq();  // seqs 0..9
+    cursor.ack(3825);
+    EXPECT_EQ(cursor.ackedSeq(), 9u);
+}
+
+TEST(JournalCursorTest, AckWithNothingWrittenIsIgnored) {
+    JournalCursor cursor(Stream::Events);
+    cursor.ack(42);
+    EXPECT_FALSE(cursor.hasAck());
 }
 
 TEST(JournalCursorTest, ReclaimOfFullyAckedRangeProducesNoGap) {

@@ -186,7 +186,8 @@ void Uplink::serviceOnce() {
         }
         uint64_t ageMs = hasPending ? now - pendingSince : 0;
 
-        backlogs.push_back({stream, hasPending, slot.active, ageMs});
+        backlogs.push_back({stream, hasPending, slot.active, ageMs,
+                            slot.active && now >= slot.nextSendDueMs});
     }
 
     auto pick = UplinkScheduler::pickNext(backlogs, kDataStarvationMs, kLogsStarvationMs);

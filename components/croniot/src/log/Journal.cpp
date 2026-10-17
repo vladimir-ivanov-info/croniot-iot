@@ -1,7 +1,10 @@
 #include "Journal.h"
 
+#include <dirent.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -16,6 +19,7 @@
 #include "CborWriter.h"
 #include "FrameAccumulator.h"
 #include "FrameCodec.h"
+#include "SegmentFiles.h"
 #include "SpaceReclaimer.h"
 
 namespace croniot::log {
@@ -111,6 +115,12 @@ struct IndexFileFormat {
     std::array<SegmentRecord, Journal::kMaxTrackedSegments> segments{};
 };
 
+// ~1.3 KB, so not on the stack: saveIndex() also runs on 4 KB tasks
+// (mqtt_worker via ack(), croniot_sensor_flush via rotation), where that
+// plus LittleFS's own frames is what overflowed before (iot.md §8).
+// Only touched by loadIndex()/saveIndex(), always under JournalLock.
+IndexFileFormat g_indexScratch;
+
 }  // namespace
 
 Journal& Journal::instance() {
@@ -174,7 +184,7 @@ void Journal::loadIndex(StreamState& state) {
     std::string path = std::string(state.mountPath) + "/" + state.filePrefix + "_index.bin";
     FILE* file = fopen(path.c_str(), "rb");
 
-    IndexFileFormat index;
+    IndexFileFormat& index = g_indexScratch;
     bool valid = false;
     if (file) {
         valid = fread(&index, sizeof(index), 1, file) == 1 && index.magic == kIndexMagic &&
@@ -198,10 +208,8 @@ void Journal::loadIndex(StreamState& state) {
         }
     }
     // If not valid (first boot ever, or a corrupt/missing index), start
-    // this stream fresh at seq 0 with no tracked segments. Any raw
-    // segment files left over from before are simply orphaned - they
-    // stay on flash, untracked, until a human clears them; that's a far
-    // safer failure mode than guessing at their contents.
+    // this stream fresh at seq 0 with no tracked segments. Segment files
+    // left over from before are deleted below (removeOrphanSegments()).
 
     if (state.segmentCount == 0) {
         SegmentRecord first;
@@ -212,15 +220,57 @@ void Journal::loadIndex(StreamState& state) {
         state.segmentCount = 1;
     }
 
+    removeOrphanSegments(state);
+
     // The index is only saved on rotation/ack/reclaim, so its view of the
     // open segment is stale after any reboot - the file is the source of truth.
     recoverOpenSegment(state);
 }
 
+void Journal::removeOrphanSegments(StreamState& state) {
+    // A segment file the index doesn't track can't be served correctly:
+    // readFrom() numbers frames by their position from the segment's
+    // oldestSeq, and the frames inside carry the seqs of whatever index
+    // wrote them. Worse, its id gets reused - fresh index -> segment 0,
+    // rotation -> last id + 1 - and writeFrame() opens with "ab", so new
+    // records land after the old ones and the old ones go out again as
+    // new (seen on device after a crash loop that truncated the index:
+    // weeks-old events re-sent under the current boot, acks ahead of
+    // nextSeq, Logs stuck). The reclaimer can't see them either, so their
+    // space was never freed. Deleting them loses only data that could
+    // never have been sent correctly.
+    DIR* dir = opendir(state.mountPath);
+    if (!dir) return;
+
+    uint32_t removed = 0;
+    uint64_t removedBytes = 0;
+    while (struct dirent* entry = readdir(dir)) {
+        auto id = SegmentFiles::parseSegmentId(entry->d_name, state.filePrefix);
+        if (!id) continue;
+        bool tracked = std::any_of(state.segments.begin(), state.segments.begin() + state.segmentCount,
+                                   [&](const SegmentRecord& segment) { return segment.segmentId == *id; });
+        if (tracked) continue;
+
+        std::string path = segmentPath(state, *id);
+        struct stat info {};
+        if (stat(path.c_str(), &info) == 0) removedBytes += static_cast<uint64_t>(info.st_size);
+        if (std::remove(path.c_str()) == 0) ++removed;
+    }
+    closedir(dir);
+
+    if (removed > 0) {
+        ESP_LOGW(TAG, "stream '%s': deleted %" PRIu32 " orphan segment file(s), %" PRIu64
+                      " bytes, not tracked by the index",
+                 state.filePrefix, removed, removedBytes);
+    }
+}
+
 void Journal::saveIndex(const StreamState& state) {
     if (!state.mounted) return;
 
-    IndexFileFormat index;
+    IndexFileFormat& index = g_indexScratch;
+    index.magic = kIndexMagic;
+    index.version = kIndexVersion;
     index.nextSeq = state.cursor.nextSeq();
     index.oldestSeq = state.cursor.oldestSeq();
     index.hasAck = state.cursor.hasAck() ? 1 : 0;
@@ -235,15 +285,26 @@ void Journal::saveIndex(const StreamState& state) {
         index.segments[i].sizeBytes = state.segments[i].sizeBytes;
         index.segments[i].closedAtUptimeSec = state.segments[i].closedAtUptimeSec;
     }
+    std::fill(index.segments.begin() + state.segmentCount, index.segments.end(), SegmentRecord{});
 
+    // Written to a temporary file and renamed over the real one, which
+    // LittleFS does atomically: fopen("wb") on the index itself truncates
+    // it first, so a crash before the fwrite finished left an empty index,
+    // the next boot started the stream from seq 0 and every segment on
+    // flash became an orphan (see removeOrphanSegments()). Now a crash
+    // leaves either the old index or the new one.
     std::string path = std::string(state.mountPath) + "/" + state.filePrefix + "_index.bin";
-    FILE* file = fopen(path.c_str(), "wb");
+    std::string tmpPath = std::string(state.mountPath) + "/" + state.filePrefix + "_index.tmp";
+    FILE* file = fopen(tmpPath.c_str(), "wb");
     if (!file) {
-        ESP_LOGW(TAG, "could not persist index at '%s'", path.c_str());
+        ESP_LOGW(TAG, "could not persist index at '%s'", tmpPath.c_str());
         return;
     }
-    fwrite(&index, sizeof(index), 1, file);
-    fclose(file);
+    bool written = fwrite(&index, sizeof(index), 1, file) == 1;
+    written = fclose(file) == 0 && written;
+    if (!written || rename(tmpPath.c_str(), path.c_str()) != 0) {
+        ESP_LOGW(TAG, "could not persist index at '%s'", path.c_str());
+    }
 }
 
 bool Journal::writeFrame(StreamState& state, const std::vector<uint8_t>& bytes) {

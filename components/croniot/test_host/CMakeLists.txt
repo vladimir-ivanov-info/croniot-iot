@@ -56,6 +56,7 @@ add_executable(host_tests
     FrameCodecTest.cpp
     FrameAccumulatorTest.cpp
     RetryPolicyTest.cpp
+    SegmentFilesTest.cpp
     UplinkSchedulerTest.cpp
     BatchEnvelopeTest.cpp
     HealthReportTest.cpp

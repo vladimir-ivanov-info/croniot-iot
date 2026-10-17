@@ -122,3 +122,29 @@ TEST(UplinkSchedulerTest, DefaultLogsStarvationNeverOverrides) {
     };
     EXPECT_EQ(UplinkScheduler::pickNext(backlogs, 999999999), Stream::Events);
 }
+
+TEST(UplinkSchedulerTest, InFlightStreamWhoseRetryIsDueIsPickedAgain) {
+    // The only stream with work is in flight and its ack never came: it must
+    // be handed back so the caller resends or gives up, not left stuck.
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, false, false, 0},
+        {Stream::Logs, true, /*inFlight=*/true, 100, /*retryDue=*/true},
+        {Stream::Data, false, false, 0},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, 60000), Stream::Logs);
+}
+
+TEST(UplinkSchedulerTest, InFlightStreamWaitingForAckIsNotPicked) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Logs, true, /*inFlight=*/true, 100, /*retryDue=*/false},
+    };
+    EXPECT_FALSE(UplinkScheduler::pickNext(backlogs, 60000).has_value());
+}
+
+TEST(UplinkSchedulerTest, DueRetryGoesBeforeNewBatchesOfHigherPriority) {
+    std::vector<StreamBacklog> backlogs = {
+        {Stream::Events, true, false, 100},
+        {Stream::Data, true, /*inFlight=*/true, 100, /*retryDue=*/true},
+    };
+    EXPECT_EQ(UplinkScheduler::pickNext(backlogs, 60000), Stream::Data);
+}
