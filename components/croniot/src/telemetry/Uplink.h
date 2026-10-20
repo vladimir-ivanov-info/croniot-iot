@@ -2,6 +2,7 @@
 #define CRONIOT_TELEMETRY_UPLINK_H
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -53,6 +54,13 @@ public:
     // "resends"), not used by the drain loop itself.
     uint32_t currentAttempt(croniot::log::Stream stream) const;
 
+    // Well-formed acks received since boot. An ack is the server's answer
+    // after committing a batch to Postgres, so a non-zero count proves
+    // the whole device -> broker -> server -> broker -> device loop works:
+    // what a freshly installed firmware has to show before it is
+    // confirmed (ota/OtaController.cpp).
+    uint32_t acksReceived() const { return acksReceived_.load(std::memory_order_relaxed); }
+
 private:
     Uplink() = default;
 
@@ -77,6 +85,7 @@ private:
     // with process uptime (see Uplink.cpp).
     std::array<uint64_t, 3> pendingSinceMs_{};
     bool started_ = false;
+    std::atomic<uint32_t> acksReceived_{0};
 };
 
 }  // namespace croniot::telemetry

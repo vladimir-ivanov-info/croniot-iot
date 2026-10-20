@@ -46,6 +46,8 @@ public:
                       std::function<void(const std::string&)> callback) override;
     void subscribeLogConfig(const std::string& deviceUuid,
                             std::function<void(const std::string&)> callback) override;
+    void subscribeOta(const std::string& deviceUuid,
+                      std::function<void(const std::string&)> callback) override;
 
 private:
     CroniotConfig::RemoteCfg cfg_;

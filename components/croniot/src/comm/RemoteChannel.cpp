@@ -32,6 +32,7 @@ std::string topicSensorBatch(const std::string& deviceUuid) { return "/iot_to_se
 std::string topicStatus(const std::string& deviceUuid) { return "/iot_to_server/status/" + deviceUuid; }
 std::string topicAck(const std::string& deviceUuid)    { return "/server/" + deviceUuid + "/ack"; }
 std::string topicLogConfig(const std::string& deviceUuid) { return "/server/" + deviceUuid + "/log_config"; }
+std::string topicOta(const std::string& deviceUuid)       { return "/server/" + deviceUuid + "/ota"; }
 
 }
 
@@ -146,6 +147,11 @@ void RemoteChannel::subscribeAck(const std::string& deviceUuid,
 void RemoteChannel::subscribeLogConfig(const std::string& deviceUuid,
                                        std::function<void(const std::string&)> callback) {
     mqtt_->registerRawCallback(topicLogConfig(deviceUuid), std::move(callback));
+}
+
+void RemoteChannel::subscribeOta(const std::string& deviceUuid,
+                                 std::function<void(const std::string&)> callback) {
+    mqtt_->registerRawCallback(topicOta(deviceUuid), std::move(callback));
 }
 
 }

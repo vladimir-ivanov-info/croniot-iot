@@ -139,3 +139,17 @@ TEST_F(MessageBusRoutingTest, NoChannelsConfiguredFailsToStart) {
     bool started = MessageBus::instance().startConnection([] {});
     EXPECT_FALSE(started);
 }
+
+TEST_F(MessageBusRoutingTest, SubscribeOtaGoesOnlyToTheServerChannel) {
+    FakeCommChannel* authChannel = addChannel(true, "auth");
+    FakeCommChannel* bleChannel = addChannel(false, "ble");
+
+    std::string received;
+    MessageBus::instance().subscribeOta([&](const std::string& json) { received = json; });
+
+    EXPECT_EQ(authChannel->subscribeOtaCalls, 1);
+    EXPECT_EQ(bleChannel->subscribeOtaCalls, 0);
+    ASSERT_TRUE(authChannel->otaCallback);
+    authChannel->otaCallback("{\"version\":\"2\"}");
+    EXPECT_EQ(received, "{\"version\":\"2\"}");
+}

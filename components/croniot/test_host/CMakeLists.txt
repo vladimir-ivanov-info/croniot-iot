@@ -35,6 +35,8 @@ add_executable(host_tests
     ${CRONIOT_SRC}/log/FrameAccumulator.cpp
     ${CRONIOT_SRC}/health/HealthReport.cpp
     ${CRONIOT_SRC}/log/RemoteLogConfig.cpp
+    ${CRONIOT_SRC}/ota/OtaManifest.cpp
+    ${CRONIOT_SRC}/ota/OtaPolicy.cpp
 
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
@@ -63,6 +65,8 @@ add_executable(host_tests
     RemoteLogConfigTest.cpp
     SensorReportBufferTest.cpp
     SensorBatchEncoderTest.cpp
+    OtaManifestTest.cpp
+    OtaPolicyTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

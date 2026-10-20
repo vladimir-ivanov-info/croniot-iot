@@ -147,4 +147,12 @@ void MessageBus::subscribeLogConfig(std::function<void(const std::string&)> call
     ch->subscribeLogConfig(deviceUuid_, std::move(callback));
 }
 
+// Same single-channel routing as subscribeLogConfig: firmware comes from
+// the server, so only the server-facing channel listens.
+void MessageBus::subscribeOta(std::function<void(const std::string&)> callback) {
+    auto* ch = preferUplinkChannel();
+    if (!ch) return;
+    ch->subscribeOta(deviceUuid_, std::move(callback));
+}
+
 }

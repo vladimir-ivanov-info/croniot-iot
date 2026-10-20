@@ -62,6 +62,8 @@ public:
                        std::function<void(const std::string& json)> callback) override;
     void subscribeLogConfig(const std::string& deviceUuid,
                              std::function<void(const std::string& json)> callback) override;
+    void subscribeOta(const std::string& deviceUuid,
+                      std::function<void(const std::string& json)> callback) override;
 
 private:
     Result timed(const char* op, const std::function<Result()>& call);
