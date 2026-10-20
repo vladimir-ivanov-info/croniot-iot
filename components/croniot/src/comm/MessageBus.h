@@ -45,6 +45,7 @@ public:
     Result publishStatus(const std::string& jsonPayload, bool retain);
     void subscribeAck(std::function<void(const std::string&)> callback);
     void subscribeLogConfig(std::function<void(const std::string&)> callback);
+    void subscribeOta(std::function<void(const std::string&)> callback);
 
     // Test-only: clears all registered channels and the device UUID so this
     // process-wide singleton can be reused cleanly across independent test

@@ -118,4 +118,9 @@ void LoggingCommChannel::subscribeLogConfig(const std::string& deviceUuid,
     inner_->subscribeLogConfig(deviceUuid, std::move(callback));
 }
 
+void LoggingCommChannel::subscribeOta(const std::string& deviceUuid,
+                                      std::function<void(const std::string& json)> callback) {
+    inner_->subscribeOta(deviceUuid, std::move(callback));
+}
+
 }  // namespace croniot

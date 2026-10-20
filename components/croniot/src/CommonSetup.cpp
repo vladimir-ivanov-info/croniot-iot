@@ -18,6 +18,7 @@
 #include "comm/RemoteChannel.h"
 #include "health/Health.h"
 #include "log/Log.h"
+#include "ota/OtaController.h"
 #include "telemetry/RetryPolicy.h"
 #include "telemetry/Uplink.h"
 
@@ -75,6 +76,11 @@ bool CommonSetup::setup(const croniot::CroniotConfig& config) {
     // reporting, not a reason to withhold the report.
     croniot::health::Health::instance().start();
 
+    // Before any channel exists: a freshly installed firmware's deadline
+    // to prove itself counts from boot, and a rollback is reported even
+    // if this boot never gets online.
+    croniot::ota::begin(config.remote);
+
     for (auto type : config.channels) {
         switch (type) {
             case ChannelType::Remote:
@@ -124,6 +130,7 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
     CurrentDateTimeController::instance().run();
 
     if (authenticated) {
+        croniot::ota::onServerAuthenticated();
         if (croniot::MessageBus::instance().startMessaging()) {
             SensorsController::instance().init();
             TaskController::instance().init();
@@ -146,6 +153,9 @@ void CommonSetup::authenticateWithServerTask(void* pvParameters) {
                     ESP_LOGW(TAG, "Ignoring remote log_config: %s", result.message.c_str());
                 }
             });
+
+            // Firmware update requests (retained /server/<uuid>/ota).
+            croniot::ota::listen();
         } else {
             ESP_LOGE(TAG, "Could not start messaging channel");
         }

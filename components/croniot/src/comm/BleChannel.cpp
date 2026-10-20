@@ -701,6 +701,8 @@ void BleChannel::subscribeAck(const std::string&, std::function<void(const std::
 
 void BleChannel::subscribeLogConfig(const std::string&, std::function<void(const std::string&)>) {}
 
+void BleChannel::subscribeOta(const std::string&, std::function<void(const std::string&)>) {}
+
 void BleChannel::onTaskCommandWrite(const std::string& payload) {
     ESP_LOGI(TAG, "TaskCommand write: %.*s", (int)payload.size(), payload.data());
 

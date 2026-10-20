@@ -68,6 +68,10 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/health/HealthReport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/health/Health.cpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaManifest.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaPolicy.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaController.cpp
+
     INCLUDE_DIRS
         src
         src/comm
@@ -83,6 +87,7 @@ idf_component_register(
         src/log
         src/telemetry
         src/health
+        src/ota
 
     REQUIRES
         nvs_flash
@@ -96,4 +101,6 @@ idf_component_register(
         espcoredump
         esp_app_format
         esp_timer
+        app_update
+        mbedtls
 )

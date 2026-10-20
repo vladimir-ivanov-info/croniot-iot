@@ -148,6 +148,7 @@ void Uplink::onAck(const std::string& json) {
         ESP_LOGW(TAG, "ack for unknown stream '%s'", streamName.c_str());
         return;
     }
+    acksReceived_.fetch_add(1, std::memory_order_relaxed);
 
     uint32_t upToSeq = static_cast<uint32_t>(upToSeqField->valuedouble);
     croniot::log::Journal::instance().ack(stream, upToSeq);

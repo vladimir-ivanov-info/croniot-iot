@@ -112,6 +112,12 @@ public:
         logConfigCallback = std::move(callback);
     }
 
+    void subscribeOta(const std::string& deviceUuid,
+                      std::function<void(const std::string&)> callback) override {
+        subscribeOtaCalls++;
+        otaCallback = std::move(callback);
+    }
+
     // Test configuration.
     bool connectsSuccessfully = true;
 
@@ -136,12 +142,14 @@ public:
     int publishStatusCalls = 0;
     int subscribeAckCalls = 0;
     int subscribeLogConfigCalls = 0;
+    int subscribeOtaCalls = 0;
     std::string lastLogBatch;
     std::string lastDeviceEvent;
     std::string lastSensorBatch;
     bool lastStatusRetain = false;
     std::function<void(const std::string&)> ackCallback;
     std::function<void(const std::string&)> logConfigCallback;
+    std::function<void(const std::string&)> otaCallback;
 
 private:
     bool supportsAuth_;

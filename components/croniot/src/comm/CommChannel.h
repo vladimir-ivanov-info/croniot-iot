@@ -71,6 +71,13 @@ public:
                               std::function<void(const std::string& json)> callback) = 0;
     virtual void subscribeLogConfig(const std::string& deviceUuid,
                                     std::function<void(const std::string& json)> callback) = 0;
+
+    // Firmware update requests (documentation/plans/ota.md §4): the
+    // server publishes a retained ota/OtaManifest.h JSON on
+    // /server/<uuid>/ota, or an empty payload to cancel. BLE's
+    // implementation is a no-op - updates come from the server.
+    virtual void subscribeOta(const std::string& deviceUuid,
+                              std::function<void(const std::string& json)> callback) = 0;
 };
 
 }

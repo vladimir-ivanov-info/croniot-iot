@@ -164,3 +164,52 @@ menu "Croniot health report (croniot::health)"
             metric, not something worth preempting real work for.
 
 endmenu
+
+menu "Croniot firmware updates (croniot::ota)"
+
+    config CRONIOT_OTA_ENABLE
+        bool "Install firmware updates requested by the server"
+        default y
+        help
+            Listens on /server/<uuid>/ota and installs the release the
+            server asks for into the other app partition (A/B mode,
+            documentation/decisions/0010). Needs a partition table with
+            ota_0 and ota_1 and, for automatic rollback, the bootloader
+            option BOOTLOADER_APP_ROLLBACK_ENABLE.
+
+    config CRONIOT_OTA_STABLE_SECONDS
+        int "Seconds a new firmware must run before it can be confirmed"
+        default 60
+        depends on CRONIOT_OTA_ENABLE
+
+    config CRONIOT_OTA_CONFIRM_TIMEOUT_MIN
+        int "Minutes a new firmware has to reach the server"
+        default 30
+        depends on CRONIOT_OTA_ENABLE
+        help
+            If the new firmware has not got an answer from the server by
+            then, the device goes back to the previous firmware to find out
+            whose fault it is: if the previous one reaches the server within
+            the same time, the new release is marked bad; if not, the outage
+            was external and the update is retried later.
+
+    config CRONIOT_OTA_MAX_ATTEMPTS
+        int "Attempts per release before giving up on it"
+        default 2
+        range 1 10
+        depends on CRONIOT_OTA_ENABLE
+
+    config CRONIOT_OTA_TASK_STACK_SIZE
+        int "croniot_ota task stack size (bytes)"
+        default 8192
+        depends on CRONIOT_OTA_ENABLE
+        help
+            The download runs on this task: HTTP client, SHA-256 and the
+            flash writes. The 4 KB transfer buffer is on the heap, not here.
+
+    config CRONIOT_OTA_TASK_PRIORITY
+        int "croniot_ota task priority"
+        default 1
+        depends on CRONIOT_OTA_ENABLE
+
+endmenu
