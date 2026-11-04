@@ -71,6 +71,9 @@ idf_component_register(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaManifest.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaPolicy.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ota/OtaController.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/provision/WifiCredentials.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/provision/WifiSetupDialog.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/provision/WifiSetupConsole.cpp
 
     INCLUDE_DIRS
         src
@@ -88,6 +91,7 @@ idf_component_register(
         src/telemetry
         src/health
         src/ota
+        src/provision
 
     REQUIRES
         nvs_flash

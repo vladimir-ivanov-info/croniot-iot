@@ -81,6 +81,54 @@ void Storage::saveServerData(const ServerData &serverData) {
     cJSON_free(jsonStr);
 }
 
+namespace {
+constexpr const char* kWifiPath = "/littlefs/wifi.json";
+constexpr const char* kWifiTmpPath = "/littlefs/wifi.json.tmp";
+}  // namespace
+
+std::optional<croniot::provision::WifiCredentials> Storage::readWifiCredentials() {
+    std::ifstream file(kWifiPath);
+    if (!file.is_open()) return std::nullopt;  // never set: not an error
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    auto credentials = croniot::provision::parseWifiJson(buffer.str());
+    if (!credentials) ESP_LOGW(TAG, "%s is damaged; ignoring it", kWifiPath);
+    return credentials;
+}
+
+bool Storage::saveWifiCredentials(const croniot::provision::WifiCredentials& credentials) {
+    // Written aside and renamed over the old file: LittleFS renames
+    // atomically, so a power cut leaves either the old network or the
+    // new one, never a truncated file that reads as "not configured".
+    {
+        std::ofstream file(kWifiTmpPath, std::ios::trunc);
+        if (!file.is_open()) {
+            ESP_LOGE(TAG, "Could not write %s", kWifiTmpPath);
+            return false;
+        }
+        file << croniot::provision::encodeWifiJson(credentials);
+        file.close();
+        if (file.fail()) {
+            ESP_LOGE(TAG, "Could not write %s", kWifiTmpPath);
+            remove(kWifiTmpPath);
+            return false;
+        }
+    }
+    if (rename(kWifiTmpPath, kWifiPath) != 0) {
+        ESP_LOGE(TAG, "Could not replace %s", kWifiPath);
+        remove(kWifiTmpPath);
+        return false;
+    }
+    return true;
+}
+
+bool Storage::clearWifiCredentials() {
+    struct stat st;
+    if (stat(kWifiPath, &st) != 0) return true;  // nothing to forget
+    return remove(kWifiPath) == 0;
+}
+
 UserCredentials Storage::readUserCredentials() {
     UserCredentials credentials;
     std::ifstream file("/littlefs/credentials.json");

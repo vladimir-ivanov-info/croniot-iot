@@ -13,6 +13,8 @@
 #include "UserCredentials.h"
 #include "Tasks/TaskData.h"
 #include "CurrentDateTimeController.h"
+#include "provision/WifiCredentials.h"
+#include <optional>
 
 struct ServerData {
     std::string serverAddress;
@@ -33,6 +35,12 @@ public:
 
     UserCredentials readUserCredentials();
     void saveUserCredentials(const UserCredentials& credentials);
+
+    // /littlefs/wifi.json (provision/WifiCredentials.h). nullopt when the
+    // file is missing or unreadable; a damaged file is logged, not fatal.
+    std::optional<croniot::provision::WifiCredentials> readWifiCredentials();
+    bool saveWifiCredentials(const croniot::provision::WifiCredentials& credentials);
+    bool clearWifiCredentials();
 
     void saveFutureTask(int taskTypeId, TaskData taskData);
     std::map<int, std::string> getTasksForCurrentDateTime();

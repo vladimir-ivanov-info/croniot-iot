@@ -138,6 +138,7 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
 //esp_wifi_set_ps(WIFI_PS_NONE);           // Confirmar power saving OFF
 
     ESP_LOGI(TAG_WIFI, "Wi-Fi started, connecting to '%s'", nm.wifiSsid.c_str());
+    started_ = true;
     err = esp_wifi_connect();
     if (err != ESP_OK) {
         ESP_LOGE(TAG_WIFI, "esp_wifi_connect failed: %s", esp_err_to_name(err));
@@ -145,6 +146,56 @@ bool WifiNetworkConnectionController::init(NetworkConnectionProvider::WifiConnec
     }
 
     return true;
+}
+
+void WifiNetworkConnectionController::applyCredentials(const std::string& ssid, const std::string& password) {
+    NetworkManager::instance().setWifiCredentials(ssid, password);
+    if (!started_) return;
+
+    if (reconnectTimer != nullptr) esp_timer_stop(reconnectTimer);
+    reconnectAttempt = 0;
+    idle_ = ssid.empty();
+    // Leaving on purpose is reported as WIFI_REASON_ASSOC_LEAVE, which the
+    // event handler neither retries nor counts as a failed attempt.
+    esp_wifi_disconnect();
+    if (idle_) {
+        ESP_LOGI(TAG_WIFI, "No WiFi credentials: staying disconnected");
+        return;
+    }
+
+    wifi_config_t cfg = {};
+    esp_wifi_get_config(WIFI_IF_STA, &cfg);
+    memset(cfg.sta.ssid, 0, sizeof(cfg.sta.ssid));
+    memset(cfg.sta.password, 0, sizeof(cfg.sta.password));
+    // Not NUL-terminated at full length, which is what the driver expects
+    // for a 32-byte SSID or a 64-hex-digit PSK.
+    memcpy(cfg.sta.ssid, ssid.data(), std::min(ssid.size(), sizeof(cfg.sta.ssid)));
+    memcpy(cfg.sta.password, password.data(), std::min(password.size(), sizeof(cfg.sta.password)));
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_WIFI, "esp_wifi_set_config failed: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG_WIFI, "Connecting to '%s'", ssid.c_str());
+    err = esp_wifi_connect();
+    if (err != ESP_OK) ESP_LOGW(TAG_WIFI, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+}
+
+void WifiNetworkConnectionController::beginAttempt() {
+    if (attemptEvents_ == nullptr) attemptEvents_ = xEventGroupCreate();
+    lastReason_ = 0;
+    xEventGroupClearBits(attemptEvents_, kAttemptConnected | kAttemptFailed);
+}
+
+bool WifiNetworkConnectionController::waitAttempt(uint32_t timeoutMs, int& reason, std::string& ip) {
+    EventBits_t bits = xEventGroupWaitBits(attemptEvents_, kAttemptConnected | kAttemptFailed, pdTRUE,
+                                           pdFALSE, pdMS_TO_TICKS(timeoutMs));
+    if (bits & kAttemptConnected) {
+        ip = lastIp_;
+        return true;
+    }
+    reason = (bits & kAttemptFailed) ? lastReason_ : 0;
+    return false;
 }
 
 void WifiNetworkConnectionController::reconnectTimerCallback(void* arg) {
@@ -162,9 +213,19 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
 
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         auto* event = static_cast<wifi_event_sta_disconnected_t*>(data);
-        ESP_LOGW(TAG_WIFI, "Disconnected (reason=%d)", event ? event->reason : -1);
+        int reason = event ? event->reason : -1;
+        ESP_LOGW(TAG_WIFI, "Disconnected (reason=%d)", reason);
         inst.setWifiConnected(false);
         NetworkManager::instance().setConnectedToWifi(false);
+
+        // We left on purpose (applyCredentials), or there is nothing to
+        // reconnect to: neither a failed attempt nor a reason to retry.
+        if (reason == WIFI_REASON_ASSOC_LEAVE || inst.idle_) return;
+
+        if (inst.attemptEvents_ != nullptr) {
+            inst.lastReason_ = reason;
+            xEventGroupSetBits(inst.attemptEvents_, kAttemptFailed);
+        }
         CRONIOT_COUNT(wifi_reconnect);
 
         int shift = std::min(inst.reconnectAttempt, kMaxBackoffShift);
@@ -186,6 +247,12 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
     else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = static_cast<ip_event_got_ip_t*>(data);
         ESP_LOGI(TAG_WIFI, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+        if (inst.attemptEvents_ != nullptr) {
+            char ip[16];
+            snprintf(ip, sizeof(ip), IPSTR, IP2STR(&event->ip_info.ip));
+            inst.lastIp_ = ip;
+            xEventGroupSetBits(inst.attemptEvents_, kAttemptConnected);
+        }
         inst.setWifiConnected(true);
         NetworkManager::instance().setConnectedToWifi(true);
         inst.reconnectAttempt = 0;

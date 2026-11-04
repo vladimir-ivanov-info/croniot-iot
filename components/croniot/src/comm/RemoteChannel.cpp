@@ -11,6 +11,9 @@
 #include "network/http/HttpProvider.h"
 #include "network/mqtt/Sim7600MqttController.h"
 #include "network/mqtt/WifiMqttController.h"
+#include "Storage.h"
+#include "log/Log.h"
+#include "provision/WifiSetupConsole.h"
 
 namespace croniot {
 
@@ -51,7 +54,12 @@ RemoteChannel::RemoteChannel(const CroniotConfig::RemoteCfg& cfg) : cfg_(cfg) {
     HttpProvider::set(http_);
 
     NetworkManager::instance().setServerAddress(cfg_.serverAddress, cfg_.serverHttpPort, cfg_.serverMqttPort);
-    NetworkManager::instance().setWifiCredentials(cfg_.wifiSsid, cfg_.wifiPassword);
+    if (cfg_.transport == RemoteTransport::Wifi) {
+        provision::WifiCredentials compiledIn{cfg_.wifiSsid, cfg_.wifiPassword};
+        wifiSource_ = provision::resolve(Storage::instance().readWifiCredentials(), compiledIn, wifi_);
+        if (!wifi_.password.empty()) croniot::log::registerSecret(wifi_.password);
+        NetworkManager::instance().setWifiCredentials(wifi_.ssid, wifi_.password);
+    }
 }
 
 bool RemoteChannel::startConnection(ConnectionReadyCallback onReady) {
@@ -59,7 +67,15 @@ bool RemoteChannel::startConnection(ConnectionReadyCallback onReady) {
         ESP_LOGI(TAG, "Connection ready: %s", ssid.c_str());
         if (onReady) onReady();
     };
-    return NetworkConnectionProvider::init(network_, wifiCb);
+    if (cfg_.transport != RemoteTransport::Wifi) return NetworkConnectionProvider::init(network_, wifiCb);
+
+    auto startWifi = [this, wifiCb]() { return NetworkConnectionProvider::init(network_, wifiCb); };
+    // Without credentials the WiFi driver isn't started at all: the
+    // console starts it once someone types them in. That still counts as
+    // a successful start - the channel is waiting, not broken.
+    bool ok = wifiSource_ == provision::Source::None || startWifi();
+    provision::startWifiSetupConsole(wifiSource_, wifi_, startWifi);
+    return ok;
 }
 
 bool RemoteChannel::startMessaging() {
