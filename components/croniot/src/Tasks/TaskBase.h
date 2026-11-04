@@ -1,6 +1,7 @@
 #ifndef TASKBASE_H
 #define TASKBASE_H
 
+#include <cstdint>
 #include <string>
 #include <map>
 #include <freertos/FreeRTOS.h>
