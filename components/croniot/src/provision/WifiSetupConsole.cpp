@@ -50,6 +50,9 @@ struct State {
     // After a failed attempt the driver is parked (no retries) while the
     // person decides; saving anyway has to start it again.
     bool parked = false;
+    // `wifi clear` deleted wifi.json, but the driver keeps the network
+    // until the device restarts.
+    bool forgotten = false;
 };
 
 State* g_state = nullptr;
@@ -96,7 +99,8 @@ void showStatus(State& s) {
     if (s.source == Source::None) {
         text = "WiFi: not configured. Type 'wifi' to set it up.\r\n";
     } else {
-        text = "WiFi network: '" + s.inUse.ssid + "' (" + describeSource(s.source) + ")\r\n";
+        const char* where = s.forgotten ? "forgotten: in use until the device restarts" : describeSource(s.source);
+        text = "WiFi network: '" + s.inUse.ssid + "' (" + where + ")\r\n";
         if (wifi.connectedToNetwork()) {
             text += "Status: connected, IP " + currentIp() + "\r\n";
         } else {
@@ -197,6 +201,7 @@ void runAction(State& s, WifiSetupDialog::Action action) {
             }
             s.inUse = p;
             s.source = Source::Device;
+            s.forgotten = false;
             ESP_LOGI(TAG, "WiFi network '%s' saved on the device", p.ssid.c_str());
             break;
         }
@@ -210,6 +215,7 @@ void runAction(State& s, WifiSetupDialog::Action action) {
                 print("ERROR: could not delete the stored network.\r\n");
                 break;
             }
+            if (s.source == Source::Device) s.forgotten = true;
             ESP_LOGI(TAG, "Stored WiFi network forgotten");
             print("Forgotten. The device stays on its current network until it restarts; then it "
                   "uses the one compiled into the firmware, if any, or asks again.\r\n");
