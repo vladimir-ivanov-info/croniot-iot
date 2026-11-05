@@ -28,6 +28,7 @@
 #include "esp_timer.h"
 #include "freertos/event_groups.h"
 
+#include <atomic>
 #include <string>
 
 #include "ConnectionTypes.h"
@@ -78,6 +79,10 @@ private:
     int reconnectAttempt = 0;
     bool started_ = false;
     volatile bool idle_ = false;  // no credentials: don't reconnect
+    // Set right before our own esp_wifi_disconnect(), so the handler can
+    // tell that WIFI_REASON_ASSOC_LEAVE apart from an access point sending
+    // the same reason (a router restarting does), which must be retried.
+    std::atomic<bool> expectLeave_{false};
 
     static constexpr EventBits_t kAttemptConnected = BIT0;
     static constexpr EventBits_t kAttemptFailed = BIT1;

@@ -59,4 +59,25 @@ enum class ConnectFailure {
 ConnectFailure classifyDisconnect(int reason);
 const char* describe(ConnectFailure failure);
 
+// Turns the disconnect reasons of one attempt into a single verdict.
+// One failure proves little: with a weak or busy access point the first
+// handshake often times out (reason 15, then a generic 205) even with
+// the right password, and the driver's next try then succeeds. So the
+// verdict is final early only once the same specific kind has come back
+// twice; otherwise the caller keeps waiting until its timeout, and the
+// result is the most specific kind seen.
+class ConnectVerdict {
+public:
+    // Feeds one disconnect reason. Returns true when waiting longer
+    // would not change the verdict.
+    bool onFailure(int reason);
+    // Timeout when no failure was reported at all.
+    ConnectFailure result() const;
+
+private:
+    int wrongPassword_ = 0;
+    int notFound_ = 0;
+    bool sawFailure_ = false;
+};
+
 }  // namespace croniot::provision

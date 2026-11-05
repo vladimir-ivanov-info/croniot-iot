@@ -129,6 +129,22 @@ ConnectFailure classifyDisconnect(int reason) {
     }
 }
 
+bool ConnectVerdict::onFailure(int reason) {
+    sawFailure_ = true;
+    switch (classifyDisconnect(reason)) {
+        case ConnectFailure::WrongPassword: ++wrongPassword_; break;
+        case ConnectFailure::NetworkNotFound: ++notFound_; break;
+        default: break;
+    }
+    return wrongPassword_ >= 2 || notFound_ >= 2;
+}
+
+ConnectFailure ConnectVerdict::result() const {
+    if (wrongPassword_ > 0 && wrongPassword_ >= notFound_) return ConnectFailure::WrongPassword;
+    if (notFound_ > 0) return ConnectFailure::NetworkNotFound;
+    return sawFailure_ ? ConnectFailure::Other : ConnectFailure::Timeout;
+}
+
 const char* describe(ConnectFailure failure) {
     switch (failure) {
         case ConnectFailure::WrongPassword:

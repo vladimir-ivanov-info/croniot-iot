@@ -86,6 +86,8 @@ TEST(WifiSetupDialogTest, HappyPathConnectsAndSaves) {
     r = d.onConnectResult(true, ConnectFailure::Other);
     EXPECT_EQ(r.action, Action::Save);
     EXPECT_TRUE(contains(r.text, "OK"));
+    // The console says "Saved" only once the write worked.
+    EXPECT_FALSE(contains(r.text, "Saved"));
     EXPECT_FALSE(d.busy());
 }
 
@@ -124,7 +126,9 @@ TEST(WifiSetupDialogTest, FailureCanBeSavedAnyway) {
     d.onLine("Garden");
     d.onLine("12345678");
     d.onConnectResult(false, ConnectFailure::NetworkNotFound);
-    EXPECT_EQ(d.onLine("y").action, Action::Save);
+    auto r = d.onLine("y");
+    EXPECT_EQ(r.action, Action::Save);
+    EXPECT_FALSE(contains(r.text, "Saved"));
 }
 
 TEST(WifiSetupDialogTest, RejectsInvalidInputAndAsksAgain) {
@@ -171,4 +175,12 @@ TEST(WifiSetupDialogTest, OtherCommands) {
 TEST(WifiSetupDialogTest, ConnectResultOutsideAnAttemptIsIgnored) {
     WifiSetupDialog d;
     EXPECT_EQ(d.onConnectResult(true, ConnectFailure::Other).action, Action::None);
+}
+
+TEST(LineEditorTest, ResetDropsAHalfTypedLine) {
+    LineEditor editor;
+    std::string echoed;
+    type(editor, "abc", echoed);
+    editor.reset();
+    EXPECT_EQ(type(editor, "y\r", echoed), std::optional<std::string>("y"));
 }

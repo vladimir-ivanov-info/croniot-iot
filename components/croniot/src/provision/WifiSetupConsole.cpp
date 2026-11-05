@@ -53,6 +53,9 @@ struct State {
     // `wifi clear` deleted wifi.json, but the driver keeps the network
     // until the device restarts.
     bool forgotten = false;
+    // Set by discardInput(): the rest of the bytes already read in this
+    // round were typed while busy, so they are dropped too.
+    bool discardRest = false;
 };
 
 State* g_state = nullptr;
@@ -111,6 +114,7 @@ void showStatus(State& s) {
 }
 
 void runAction(State& s, WifiSetupDialog::Action action);
+void discardInput(State& s);
 
 void tryConnect(State& s) {
     auto& wifi = WifiNetworkConnectionController::instance();
@@ -127,16 +131,10 @@ void tryConnect(State& s) {
     if (!wifi.started() && !(s.startWifi && s.startWifi())) {
         failure = ConnectFailure::Other;
     } else {
-        // One failure proves little: with a weak or busy access point the
-        // first handshake often times out (reason 15, then a generic 205)
-        // even with the right password, and the driver's own retry then
-        // succeeds. So the controller keeps retrying for the whole
-        // timeout, and the verdict is the most specific reason seen,
-        // early only once the same specific reason has come back twice.
+        // The controller keeps retrying for the whole timeout;
+        // ConnectVerdict says when waiting longer is pointless.
         TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(CONFIG_CRONIOT_WIFI_CONNECT_TIMEOUT_S * 1000);
-        int wrongPassword = 0;
-        int notFound = 0;
-        bool sawFailure = false;
+        ConnectVerdict verdict;
         while (true) {
             TickType_t now = xTaskGetTickCount();
             if (now >= deadline) break;
@@ -147,21 +145,9 @@ void tryConnect(State& s) {
             }
             if (r == 0) break;  // timed out
             reason = r;
-            sawFailure = true;
-            switch (classifyDisconnect(r)) {
-                case ConnectFailure::WrongPassword: ++wrongPassword; break;
-                case ConnectFailure::NetworkNotFound: ++notFound; break;
-                default: break;
-            }
-            if (wrongPassword >= 2 || notFound >= 2) break;
+            if (verdict.onFailure(r)) break;
         }
-        if (wrongPassword > 0 && wrongPassword >= notFound) {
-            failure = ConnectFailure::WrongPassword;
-        } else if (notFound > 0) {
-            failure = ConnectFailure::NetworkNotFound;
-        } else {
-            failure = sawFailure ? ConnectFailure::Other : ConnectFailure::Timeout;
-        }
+        failure = verdict.result();
     }
     if (connected) {
         ESP_LOGI(TAG, "Joined '%s' from the console", p.ssid.c_str());
@@ -172,6 +158,10 @@ void tryConnect(State& s) {
         wifi.applyCredentials("", "");
         s.parked = true;
     }
+
+    // Keys pressed while waiting (an impatient Enter, say) would
+    // otherwise answer the question below before it is even read.
+    discardInput(s);
 
     auto reply = s.dialog.onConnectResult(connected, failure);
     print(reply.text);
@@ -190,9 +180,23 @@ void runAction(State& s, WifiSetupDialog::Action action) {
         case Action::Save: {
             const WifiCredentials& p = s.dialog.pending();
             if (!Storage::instance().saveWifiCredentials(p)) {
-                print("ERROR: the network works but could not be saved to the flash, so the device "
-                      "will forget it when it restarts.\r\n");
+                if (s.parked) {
+                    // Saving anyway was the only reason to keep this network.
+                    WifiNetworkConnectionController::instance().applyCredentials(s.beforeAttempt.ssid,
+                                                                                 s.beforeAttempt.password);
+                    s.parked = false;
+                    print("ERROR: could not save to the flash. Nothing was changed: the device keeps "
+                          "the network it had before.\r\n");
+                } else {
+                    print("ERROR: the network works but could not be saved to the flash, so the device "
+                          "will forget it when it restarts.\r\n");
+                }
                 break;
+            }
+            if (s.parked) {
+                print("Saved. The device will keep trying to join '" + p.ssid + "'.\r\n");
+            } else {
+                print("Saved on the device: it will use this network from now on.\r\n");
             }
             if (!p.password.empty()) croniot::log::registerSecret(p.password);
             if (s.parked) {
@@ -264,6 +268,23 @@ int readInput(uint8_t* buf, size_t len) {
     return 0;
 }
 
+void discardInput(State& s) {
+    uint8_t buf[32];
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
+    if (usb_serial_jtag_is_driver_installed()) {
+        while (usb_serial_jtag_read_bytes(buf, sizeof(buf), 0) > 0) {
+        }
+    }
+#endif
+#if CONFIG_ESP_CONSOLE_UART
+    if (uart_is_driver_installed(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM))) {
+        uart_flush_input(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
+    }
+#endif
+    s.editor.reset();
+    s.discardRest = true;
+}
+
 void consoleTask(void*) {
     State& s = *g_state;
     installInputs();
@@ -274,7 +295,8 @@ void consoleTask(void*) {
 
     while (true) {
         int n = readInput(buf, sizeof(buf));
-        for (int i = 0; i < n; ++i) {
+        s.discardRest = false;
+        for (int i = 0; i < n && !s.discardRest; ++i) {
             auto line = s.editor.feed(static_cast<char>(buf[i]), echo);
             print(echo);
             if (!line) continue;

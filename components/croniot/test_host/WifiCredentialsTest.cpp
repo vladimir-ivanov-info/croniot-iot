@@ -77,3 +77,45 @@ TEST(WifiCredentialsTest, ClassifiesDisconnectReasons) {
     EXPECT_EQ(classifyDisconnect(210), ConnectFailure::NetworkNotFound);
     EXPECT_EQ(classifyDisconnect(1), ConnectFailure::Other);
 }
+
+TEST(ConnectVerdictTest, NoFailureIsATimeout) {
+    ConnectVerdict v;
+    EXPECT_EQ(v.result(), ConnectFailure::Timeout);
+}
+
+TEST(ConnectVerdictTest, OneHandshakeTimeoutIsNotFinal) {
+    // What a weak signal does with the right password: 15, then a
+    // generic 205, then the driver's next try connects.
+    ConnectVerdict v;
+    EXPECT_FALSE(v.onFailure(15));
+    EXPECT_FALSE(v.onFailure(205));
+    // Had the timeout come here, the most specific reason wins.
+    EXPECT_EQ(v.result(), ConnectFailure::WrongPassword);
+}
+
+TEST(ConnectVerdictTest, TwoOfAKindIsFinal) {
+    ConnectVerdict wrong;
+    EXPECT_FALSE(wrong.onFailure(15));
+    EXPECT_TRUE(wrong.onFailure(202));
+    EXPECT_EQ(wrong.result(), ConnectFailure::WrongPassword);
+
+    ConnectVerdict missing;
+    EXPECT_FALSE(missing.onFailure(201));
+    EXPECT_TRUE(missing.onFailure(201));
+    EXPECT_EQ(missing.result(), ConnectFailure::NetworkNotFound);
+}
+
+TEST(ConnectVerdictTest, GenericReasonsNeverEndTheWait) {
+    ConnectVerdict v;
+    for (int i = 0; i < 5; ++i) EXPECT_FALSE(v.onFailure(205));
+    EXPECT_EQ(v.result(), ConnectFailure::Other);
+}
+
+TEST(ConnectVerdictTest, MixedKindsPickTheMoreFrequent) {
+    ConnectVerdict v;
+    v.onFailure(201);
+    v.onFailure(15);
+    EXPECT_EQ(v.result(), ConnectFailure::WrongPassword);  // a tie goes to the password
+    v.onFailure(201);
+    EXPECT_EQ(v.result(), ConnectFailure::NetworkNotFound);
+}

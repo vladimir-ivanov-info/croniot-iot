@@ -155,8 +155,9 @@ void WifiNetworkConnectionController::applyCredentials(const std::string& ssid, 
     if (reconnectTimer != nullptr) esp_timer_stop(reconnectTimer);
     reconnectAttempt = 0;
     idle_ = ssid.empty();
-    // Leaving on purpose is reported as WIFI_REASON_ASSOC_LEAVE, which the
-    // event handler neither retries nor counts as a failed attempt.
+    // Leaving on purpose is reported as WIFI_REASON_ASSOC_LEAVE; the flag
+    // makes the handler neither retry it nor count it as a failed attempt.
+    expectLeave_ = true;
     esp_wifi_disconnect();
     if (idle_) {
         ESP_LOGI(TAG_WIFI, "No WiFi credentials: staying disconnected");
@@ -220,7 +221,11 @@ void WifiNetworkConnectionController::wifiEventHandler(void* arg,
 
         // We left on purpose (applyCredentials), or there is nothing to
         // reconnect to: neither a failed attempt nor a reason to retry.
-        if (reason == WIFI_REASON_ASSOC_LEAVE || inst.idle_) return;
+        // Only our own leave: the same reason from the access point is a
+        // real drop. exchange() clears the flag either way, so a
+        // disconnect() that produced no event can't swallow a later one.
+        bool ourLeave = inst.expectLeave_.exchange(false);
+        if ((reason == WIFI_REASON_ASSOC_LEAVE && ourLeave) || inst.idle_) return;
 
         if (inst.attemptEvents_ != nullptr) {
             inst.lastReason_ = reason;

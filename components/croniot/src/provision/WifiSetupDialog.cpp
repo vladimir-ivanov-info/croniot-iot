@@ -112,8 +112,8 @@ WifiSetupDialog::Reply WifiSetupDialog::onLine(const std::string& raw) {
             std::string answer = lower(trim(raw));
             if (answer == "y" || answer == "yes" || answer == "s" || answer == "si" || answer == "sí") {
                 state_ = State::Idle;
-                return {"Saved. The device will keep trying to join '" + pending_.ssid + "'.\r\n",
-                        Action::Save};
+                // WifiSetupConsole says whether the write worked.
+                return {"", Action::Save};
             }
             state_ = State::Idle;
             return {"Not saved: the device keeps the network it had before. "
@@ -128,9 +128,8 @@ WifiSetupDialog::Reply WifiSetupDialog::onConnectResult(bool connected, ConnectF
     if (state_ != State::Connecting) return {};
     if (connected) {
         state_ = State::Idle;
-        return {"OK: connected to '" + pending_.ssid +
-                    "'. Saved on the device: it will use this network from now on.\r\n",
-                Action::Save};
+        // Saving comes next; WifiSetupConsole says whether the write worked.
+        return {"OK: connected to '" + pending_.ssid + "'.\r\n", Action::Save};
     }
     state_ = State::AskSaveAnyway;
     return {std::string("FAILED: could not connect to '") + pending_.ssid + "': " + describe(failure) +

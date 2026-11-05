@@ -14,6 +14,11 @@ namespace croniot::provision {
 class LineEditor {
 public:
     void setMasked(bool masked) { masked_ = masked; }
+    // Drops a half-typed line, e.g. keys pressed while the device was busy.
+    void reset() {
+        line_.clear();
+        lastWasCr_ = false;
+    }
 
     // Feeds one byte. Returns a finished line on Enter; `echo` gets what
     // to write back so the person sees what they type.
@@ -34,7 +39,8 @@ private:
 //   Network name (SSID): MyNetwork
 //   Password (leave empty for an open network): ********
 //   Connecting to 'MyNetwork'...
-//   OK: connected to 'MyNetwork'. Saved on the device.
+//   OK: connected to 'MyNetwork'.
+//   Saved on the device: it will use this network from now on.
 class WifiSetupDialog {
 public:
     enum class Action {
