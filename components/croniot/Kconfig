@@ -213,3 +213,33 @@ menu "Croniot firmware updates (croniot::ota)"
         depends on CRONIOT_OTA_ENABLE
 
 endmenu
+
+menu "Croniot WiFi setup (croniot::provision)"
+
+    config CRONIOT_WIFI_CONSOLE
+        bool "Let the WiFi network be set from the serial console"
+        default y
+        help
+            Type `wifi` in a serial monitor to set the network the device
+            joins: it asks for the name and password, tries to connect,
+            says whether it worked, and stores them in /littlefs/wifi.json.
+            When no network is configured at all, the console says so at
+            boot and every minute. Off: only the credentials compiled in
+            through CroniotConfig::remote can be used.
+
+    config CRONIOT_WIFI_CONNECT_TIMEOUT_S
+        int "Seconds to wait for a connection before reporting a failure"
+        depends on CRONIOT_WIFI_CONSOLE
+        range 5 120
+        default 30
+        help
+            The driver keeps retrying meanwhile. Not much lower: with a
+            weak signal the first handshake often fails even with the
+            right password, and the retry that succeeds can take ~20 s.
+
+    config CRONIOT_WIFI_CONSOLE_TASK_STACK_SIZE
+        int "croniot_wifi_cli task stack size (bytes)"
+        depends on CRONIOT_WIFI_CONSOLE
+        default 4096
+
+endmenu

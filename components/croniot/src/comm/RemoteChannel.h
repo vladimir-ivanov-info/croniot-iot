@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommChannel.h"
+#include "provision/WifiCredentials.h"
 #include "CroniotConfig.h"
 #include "network/connection_provider/NetworkConnectionControllerBase.h"
 #include "network/http/HttpController.h"
@@ -54,6 +55,10 @@ private:
     HttpController* http_ = nullptr;
     MqttController* mqtt_ = nullptr;
     NetworkConnectionControllerBase* network_ = nullptr;
+    // WiFi only: the network to join and where it came from (see
+    // provision/WifiCredentials.h for the order of preference).
+    provision::Source wifiSource_ = provision::Source::None;
+    provision::WifiCredentials wifi_;
 };
 
 }

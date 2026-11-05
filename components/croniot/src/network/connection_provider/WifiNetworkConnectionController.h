@@ -26,6 +26,10 @@
 
 // Delayed reconnect (no blocking inside the WiFi event handler)
 #include "esp_timer.h"
+#include "freertos/event_groups.h"
+
+#include <atomic>
+#include <string>
 
 #include "ConnectionTypes.h"
 #include "log/Counters.h"
@@ -45,6 +49,21 @@ public:
 
     WifiNetworkConnectionController() = default; //TODO poner private
 
+    // Whether init() has started the WiFi driver. It is not started at
+    // all while no credentials exist (RemoteChannel waits for the console).
+    bool started() const { return started_; }
+
+    // Switches to other credentials at runtime (provision/WifiSetupConsole).
+    // An empty ssid disconnects and stays off: no reconnect loop against a
+    // network nobody configured. Before init() it only records them.
+    void applyCredentials(const std::string& ssid, const std::string& password);
+
+    // Watching one connection attempt: beginAttempt() before connecting,
+    // then waitAttempt() is true once there is an IP, or false with the
+    // first ESP-IDF disconnect reason (wifi_err_reason_t; 0 = timed out).
+    void beginAttempt();
+    bool waitAttempt(uint32_t timeoutMs, int& reason, std::string& ip);
+
 private:
 
     bool taskCreated = false;
@@ -58,6 +77,19 @@ private:
     // that grows with consecutive failures, so a wrong password or a missing
     // AP doesn't turn into a tight retry loop.
     int reconnectAttempt = 0;
+    bool started_ = false;
+    volatile bool idle_ = false;  // no credentials: don't reconnect
+    // Set right before our own esp_wifi_disconnect(), so the handler can
+    // tell that WIFI_REASON_ASSOC_LEAVE apart from an access point sending
+    // the same reason (a router restarting does), which must be retried.
+    std::atomic<bool> expectLeave_{false};
+
+    static constexpr EventBits_t kAttemptConnected = BIT0;
+    static constexpr EventBits_t kAttemptFailed = BIT1;
+    EventGroupHandle_t attemptEvents_ = nullptr;
+    volatile int lastReason_ = 0;
+    std::string lastIp_;
+
     esp_timer_handle_t reconnectTimer = nullptr;
     static void reconnectTimerCallback(void* arg);
 

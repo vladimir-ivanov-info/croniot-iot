@@ -37,6 +37,8 @@ add_executable(host_tests
     ${CRONIOT_SRC}/log/RemoteLogConfig.cpp
     ${CRONIOT_SRC}/ota/OtaManifest.cpp
     ${CRONIOT_SRC}/ota/OtaPolicy.cpp
+    ${CRONIOT_SRC}/provision/WifiCredentials.cpp
+    ${CRONIOT_SRC}/provision/WifiSetupDialog.cpp
 
     BleChannelLogicTest.cpp
     MessageBusRoutingTest.cpp
@@ -67,6 +69,8 @@ add_executable(host_tests
     SensorBatchEncoderTest.cpp
     OtaManifestTest.cpp
     OtaPolicyTest.cpp
+    WifiCredentialsTest.cpp
+    WifiSetupDialogTest.cpp
 )
 
 target_include_directories(host_tests PRIVATE

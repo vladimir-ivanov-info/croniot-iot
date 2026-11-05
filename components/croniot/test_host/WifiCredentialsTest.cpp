@@ -1,0 +1,121 @@
+#include "provision/WifiCredentials.h"
+
+#include <gtest/gtest.h>
+
+using namespace croniot::provision;
+
+TEST(WifiCredentialsTest, RoundTripsThroughJson) {
+    WifiCredentials c{"My \"Home\" \\ Net", "pa\"ss\\word"};
+    auto parsed = parseWifiJson(encodeWifiJson(c));
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(*parsed, c);
+}
+
+TEST(WifiCredentialsTest, OpenNetworkHasEmptyPassword) {
+    auto parsed = parseWifiJson(R"({"ssid":"Cafe","password":""})");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->ssid, "Cafe");
+    EXPECT_TRUE(parsed->password.empty());
+
+    auto noPasswordKey = parseWifiJson(R"({"ssid":"Cafe"})");
+    ASSERT_TRUE(noPasswordKey.has_value());
+    EXPECT_TRUE(noPasswordKey->password.empty());
+}
+
+TEST(WifiCredentialsTest, IgnoresUnknownKeys) {
+    auto parsed = parseWifiJson(R"({"v":1,"ssid":"Net","extra":{"a":[1,2]},"password":"12345678"})");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->password, "12345678");
+}
+
+TEST(WifiCredentialsTest, RejectsDamagedOrInvalidFiles) {
+    EXPECT_FALSE(parseWifiJson("").has_value());
+    EXPECT_FALSE(parseWifiJson(R"({"ssid":"Net","password":"12345678")").has_value());  // truncated
+    EXPECT_FALSE(parseWifiJson(R"({"password":"12345678"})").has_value());              // no ssid
+    EXPECT_FALSE(parseWifiJson(R"({"ssid":"","password":"12345678"})").has_value());
+    EXPECT_FALSE(parseWifiJson(R"({"ssid":"Net","password":"short"})").has_value());
+    EXPECT_FALSE(parseWifiJson(R"({"ssid":1,"password":"12345678"})").has_value());
+}
+
+TEST(WifiCredentialsTest, ValidatesSsid) {
+    EXPECT_TRUE(ssidError("").has_value());
+    EXPECT_FALSE(ssidError("a").has_value());
+    EXPECT_FALSE(ssidError(std::string(32, 'x')).has_value());
+    EXPECT_TRUE(ssidError(std::string(33, 'x')).has_value());
+    EXPECT_TRUE(ssidError("bad\tname").has_value());
+    EXPECT_FALSE(ssidError(" spaced ").has_value());
+}
+
+TEST(WifiCredentialsTest, ValidatesPassword) {
+    EXPECT_FALSE(passwordError("").has_value());  // open network
+    EXPECT_TRUE(passwordError("1234567").has_value());
+    EXPECT_FALSE(passwordError("12345678").has_value());
+    EXPECT_FALSE(passwordError(std::string(63, 'p')).has_value());
+    EXPECT_FALSE(passwordError(std::string(64, 'a')).has_value());  // raw PSK, hex
+    EXPECT_TRUE(passwordError(std::string(64, 'p')).has_value());   // 64 but not hex
+    EXPECT_TRUE(passwordError(std::string(65, 'a')).has_value());
+}
+
+TEST(WifiCredentialsTest, DeviceFileWinsOverCompiledIn) {
+    WifiCredentials out;
+    WifiCredentials compiled{"Built", "12345678"};
+
+    EXPECT_EQ(resolve(WifiCredentials{"Typed", "87654321"}, compiled, out), Source::Device);
+    EXPECT_EQ(out.ssid, "Typed");
+
+    EXPECT_EQ(resolve(std::nullopt, compiled, out), Source::Firmware);
+    EXPECT_EQ(out.ssid, "Built");
+
+    EXPECT_EQ(resolve(std::nullopt, WifiCredentials{}, out), Source::None);
+    EXPECT_TRUE(out.ssid.empty());
+}
+
+TEST(WifiCredentialsTest, ClassifiesDisconnectReasons) {
+    EXPECT_EQ(classifyDisconnect(15), ConnectFailure::WrongPassword);
+    EXPECT_EQ(classifyDisconnect(204), ConnectFailure::WrongPassword);
+    EXPECT_EQ(classifyDisconnect(201), ConnectFailure::NetworkNotFound);
+    EXPECT_EQ(classifyDisconnect(210), ConnectFailure::NetworkNotFound);
+    EXPECT_EQ(classifyDisconnect(1), ConnectFailure::Other);
+}
+
+TEST(ConnectVerdictTest, NoFailureIsATimeout) {
+    ConnectVerdict v;
+    EXPECT_EQ(v.result(), ConnectFailure::Timeout);
+}
+
+TEST(ConnectVerdictTest, OneHandshakeTimeoutIsNotFinal) {
+    // What a weak signal does with the right password: 15, then a
+    // generic 205, then the driver's next try connects.
+    ConnectVerdict v;
+    EXPECT_FALSE(v.onFailure(15));
+    EXPECT_FALSE(v.onFailure(205));
+    // Had the timeout come here, the most specific reason wins.
+    EXPECT_EQ(v.result(), ConnectFailure::WrongPassword);
+}
+
+TEST(ConnectVerdictTest, TwoOfAKindIsFinal) {
+    ConnectVerdict wrong;
+    EXPECT_FALSE(wrong.onFailure(15));
+    EXPECT_TRUE(wrong.onFailure(202));
+    EXPECT_EQ(wrong.result(), ConnectFailure::WrongPassword);
+
+    ConnectVerdict missing;
+    EXPECT_FALSE(missing.onFailure(201));
+    EXPECT_TRUE(missing.onFailure(201));
+    EXPECT_EQ(missing.result(), ConnectFailure::NetworkNotFound);
+}
+
+TEST(ConnectVerdictTest, GenericReasonsNeverEndTheWait) {
+    ConnectVerdict v;
+    for (int i = 0; i < 5; ++i) EXPECT_FALSE(v.onFailure(205));
+    EXPECT_EQ(v.result(), ConnectFailure::Other);
+}
+
+TEST(ConnectVerdictTest, MixedKindsPickTheMoreFrequent) {
+    ConnectVerdict v;
+    v.onFailure(201);
+    v.onFailure(15);
+    EXPECT_EQ(v.result(), ConnectFailure::WrongPassword);  // a tie goes to the password
+    v.onFailure(201);
+    EXPECT_EQ(v.result(), ConnectFailure::NetworkNotFound);
+}
