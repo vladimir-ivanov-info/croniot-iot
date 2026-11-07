@@ -1,7 +1,9 @@
 #include "OtaPolicy.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace croniot::ota {
 
@@ -164,6 +166,34 @@ OtaRecord decodeRecord(const std::string& blob) {
         r.bad.push_back(BadRelease{line.substr(0, tab), line.substr(tab + 1)});
     }
     return r;
+}
+
+int progressToReport(uint32_t written, uint32_t total, int lastReported, int stepPercent) {
+    if (total == 0 || stepPercent <= 0) return -1;
+    uint64_t percent = static_cast<uint64_t>(std::min(written, total)) * 100 / total;
+    int reached = static_cast<int>(percent) / stepPercent * stepPercent;
+    if (written >= total) reached = 100;
+    return reached > lastReported ? reached : -1;
+}
+
+std::string isoBuildTime(const char* date, const char* time) {
+    static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    if (date == nullptr || time == nullptr) return "";
+    char month[4] = {};
+    int day = 0;
+    int year = 0;
+    if (std::sscanf(date, "%3s %d %d", month, &day, &year) != 3) return "";
+    int m = 0;
+    while (m < 12 && std::strcmp(month, kMonths[m]) != 0) ++m;
+    if (m == 12 || day < 1 || day > 31) return "";
+    int hh = 0;
+    int mm = 0;
+    int ss = 0;
+    if (std::sscanf(time, "%d:%d:%d", &hh, &mm, &ss) != 3) return "";
+    char out[24];
+    std::snprintf(out, sizeof(out), "%04d-%02d-%02dT%02d:%02d:%02d", year, m + 1, day, hh, mm, ss);
+    return out;
 }
 
 }  // namespace croniot::ota

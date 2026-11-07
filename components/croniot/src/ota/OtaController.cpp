@@ -13,8 +13,10 @@
 
 #include "esp_app_desc.h"
 #include "esp_http_client.h"
+#include "esp_image_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_partition.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -60,6 +62,9 @@ constexpr TickType_t kTickPeriod = pdMS_TO_TICKS(5000);
 constexpr uint64_t kGateRetryMs = 60 * 1000;
 constexpr uint64_t kDownloadRetryMs = 10 * 60 * 1000;
 constexpr int kHttpTimeoutMs = 15000;
+// ota_progress every 10 %: ten small events per update, enough for a
+// progress bar without filling the journal.
+constexpr int kProgressStepPercent = 10;
 
 uint64_t uptimeMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
 
@@ -87,6 +92,7 @@ private:
     void handlePendingManifest();
     void validate();
     void probe();
+    void reportFirmware();
 
     Result download(const Manifest& m);
     void restart();
@@ -189,17 +195,18 @@ void Controller::begin(const CroniotConfig::RemoteCfg& remote) {
         case BootSituation::Validating:
             log::event("ota_validating", log::Level::Info,
                        {{"version", runningVersion_}, {"from", record_.previousVersion},
-                        {"attempt", std::to_string(record_.attempts)}});
+                        {"attempt", std::to_string(record_.attempts)}, {"requestId", record_.requestId}});
             break;
         case BootSituation::RolledBack:
             log::event("ota_rolled_back", log::Level::Warn,
                        {{"version", record_.targetVersion}, {"running", runningVersion_},
                         {"reason", outcome.reason}, {"attempt", std::to_string(record_.attempts)},
-                        {"bad", outcome.markedBad ? "true" : "false"}});
+                        {"bad", outcome.markedBad ? "true" : "false"}, {"requestId", record_.requestId}});
             break;
         case BootSituation::Probing:
             log::event("ota_probing", log::Level::Warn,
-                       {{"version", record_.targetVersion}, {"running", runningVersion_}});
+                       {{"version", record_.targetVersion}, {"running", runningVersion_},
+                        {"requestId", record_.requestId}});
             break;
     }
     save();
@@ -235,10 +242,43 @@ void Controller::onManifestJson(const std::string& json) {
 
 void Controller::run(void* arg) {
     auto* self = static_cast<Controller*>(arg);
+    self->reportFirmware();
     for (;;) {
         ulTaskNotifyTake(pdTRUE, kTickPeriod);
         self->tick();
     }
+}
+
+// What is installed, once per boot, so the server can show it without
+// anyone reading the serial console. `hash` is the SHA-256 that ESP-IDF
+// appends to the image (the last 32 bytes of the .bin), shortened to fit
+// the event: enough to tell which uploaded release this is. Runs on the
+// OTA task because hashing the image reads all of it (~0.2 s for 2 MB).
+void Controller::reportFirmware() {
+    const esp_app_desc_t* desc = esp_app_get_description();
+    const esp_partition_t* running = esp_ota_get_running_partition();
+
+    std::string hash;
+    uint8_t digest[32];
+    if (running && esp_partition_get_sha256(running, digest) == ESP_OK) {
+        char hex[17];
+        for (int i = 0; i < 8; ++i) std::snprintf(hex + 2 * i, 3, "%02x", digest[i]);
+        hash = hex;
+    }
+    uint32_t size = 0;
+    if (running) {
+        esp_partition_pos_t pos = {running->address, running->size};
+        esp_image_metadata_t meta = {};
+        if (esp_image_get_metadata(&pos, &meta) == ESP_OK) size = meta.image_len;
+    }
+    log::event("firmware_info", log::Level::Info,
+               {{"project", desc->project_name},
+                {"version", desc->version},
+                {"built", isoBuildTime(desc->date, desc->time)},
+                {"idf", desc->idf_ver},
+                {"size", std::to_string(size)},
+                {"hash", hash},
+                {"slot", running ? running->label : ""}});
 }
 
 bool Controller::serverReachable() {
@@ -266,7 +306,7 @@ void Controller::validate() {
             ESP_LOGI(TAG, "self-test %s: %s", t.name, passed ? "ok" : "FAILED");
             if (!passed) {
                 log::event("ota_self_test_failed", log::Level::Error,
-                           {{"version", runningVersion_}, {"test", t.name}});
+                           {{"version", runningVersion_}, {"test", t.name}, {"requestId", record_.requestId}});
                 ok = false;
             }
         }
@@ -293,7 +333,7 @@ void Controller::validate() {
             ESP_LOGI(TAG, "firmware %s confirmed (%s)", runningVersion_.c_str(), esp_err_to_name(err));
             log::event("ota_confirmed", log::Level::Info,
                        {{"version", runningVersion_}, {"from", record_.previousVersion},
-                        {"attempt", std::to_string(attempt)}});
+                        {"attempt", std::to_string(attempt)}, {"requestId", record_.requestId}});
             return;
         }
         case ValidationVerdict::RollbackSelfTest:
@@ -302,7 +342,7 @@ void Controller::validate() {
                                                                                  : kReasonNoConnectivity;
             ESP_LOGW(TAG, "firmware %s failed validation (%s), rolling back", runningVersion_.c_str(), reason);
             log::event("ota_validation_failed", log::Level::Error,
-                       {{"version", runningVersion_}, {"reason", reason}});
+                       {{"version", runningVersion_}, {"reason", reason}, {"requestId", record_.requestId}});
             recordRollback(record_, verdict);
             save();
             vTaskDelay(pdMS_TO_TICKS(2000));  // let the journal pick the event up
@@ -328,11 +368,11 @@ void Controller::probe() {
     if (verdict == ProbeVerdict::NewVersionGuilty) {
         ESP_LOGW(TAG, "previous firmware reaches the server: %s is to blame", version.c_str());
         log::event("ota_failed", log::Level::Error,
-                   {{"version", version}, {"reason", "new_firmware_no_connectivity"}});
+                   {{"version", version}, {"reason", "new_firmware_no_connectivity"}, {"requestId", record_.requestId}});
     } else {
         ESP_LOGW(TAG, "previous firmware could not reach the server in time either: external outage");
         log::event("ota_deferred", log::Level::Warn,
-                   {{"version", version}, {"bad", bad ? "true" : "false"}});
+                   {{"version", version}, {"bad", bad ? "true" : "false"}, {"requestId", record_.requestId}});
     }
 }
 
@@ -368,7 +408,7 @@ void Controller::handlePendingManifest() {
     }
     if (remote_.transport != RemoteTransport::Wifi) {
         ESP_LOGW(TAG, "updates are only supported over WiFi");
-        log::event("ota_failed", log::Level::Warn, {{"version", m.version}, {"reason", "transport"}});
+        log::event("ota_failed", log::Level::Warn, {{"version", m.version}, {"reason", "transport"}, {"requestId", m.requestId}});
         current_.reset();
         return;
     }
@@ -401,7 +441,8 @@ void Controller::handlePendingManifest() {
     recordInstalled(record_, m, runningVersion_);
     save();
     log::event("ota_installed", log::Level::Info,
-               {{"version", m.version}, {"from", runningVersion_}, {"attempt", std::to_string(record_.attempts)}});
+               {{"version", m.version}, {"from", runningVersion_}, {"attempt", std::to_string(record_.attempts)},
+                {"requestId", m.requestId}});
     ESP_LOGI(TAG, "update to %s written, restarting", m.version.c_str());
     vTaskDelay(pdMS_TO_TICKS(3000));  // let the event reach the journal and, if possible, the server
     while (g_gate && !g_gate()) vTaskDelay(pdMS_TO_TICKS(kGateRetryMs));
@@ -466,6 +507,7 @@ Result Controller::download(const Manifest& m) {
     uint32_t total = 0;
     uint64_t startedMs = uptimeMs();
     uint32_t nextProgress = 256 * 1024;
+    int reportedPercent = -1;
     for (;;) {
         int n = esp_http_client_read(client, reinterpret_cast<char*>(buf.get()), kChunkSize);
         if (n < 0) {
@@ -490,6 +532,13 @@ Result Controller::download(const Manifest& m) {
         if (total >= nextProgress) {
             ESP_LOGI(TAG, "%" PRIu32 " / %" PRIu32 " KB", total / 1024, m.size / 1024);
             nextProgress += 256 * 1024;
+        }
+        int percent = progressToReport(total, m.size, reportedPercent, kProgressStepPercent);
+        if (percent >= 0) {
+            reportedPercent = percent;
+            log::event("ota_progress", log::Level::Info,
+                       {{"version", m.version}, {"percent", std::to_string(percent)},
+                        {"requestId", m.requestId}});
         }
     }
     esp_http_client_close(client);

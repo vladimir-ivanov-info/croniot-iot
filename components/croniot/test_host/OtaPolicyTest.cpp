@@ -210,3 +210,38 @@ TEST(OtaPolicyTest, GarbageDecodesToAnEmptyRecord) {
     EXPECT_EQ(decodeRecord("v1\n9\na\nb\nc\n1\n\n0\n").phase, Phase::Idle);
     EXPECT_TRUE(decodeRecord("v1\n1\na\nb\nc\n1\n\n3\nx\ty\n").requestId.empty());
 }
+
+TEST(OtaProgressTest, ReportsEachStepOnce) {
+    const uint32_t total = 1000;
+    EXPECT_EQ(progressToReport(50, total, -1, 10), 0);   // the first chunk says "started"
+    EXPECT_EQ(progressToReport(80, total, 0, 10), -1);   // still below 10 %
+    EXPECT_EQ(progressToReport(100, total, 0, 10), 10);
+    EXPECT_EQ(progressToReport(150, total, 10, 10), -1);
+}
+
+TEST(OtaProgressTest, ABigChunkJumpsToTheStepItReached) {
+    EXPECT_EQ(progressToReport(470, 1000, 10, 10), 40);
+}
+
+TEST(OtaProgressTest, TheLastByteIsAlwaysHundred) {
+    // 999 of 1000 rounds down to 99 %, which is still 90 at a 10 % step.
+    EXPECT_EQ(progressToReport(999, 1000, 80, 10), 90);
+    EXPECT_EQ(progressToReport(1000, 1000, 90, 10), 100);
+    EXPECT_EQ(progressToReport(1000, 1000, 100, 10), -1);
+}
+
+TEST(OtaProgressTest, BadInputReportsNothing) {
+    EXPECT_EQ(progressToReport(10, 0, -1, 10), -1);
+    EXPECT_EQ(progressToReport(10, 100, -1, 0), -1);
+}
+
+TEST(OtaBuildTimeTest, ConvertsTheCompilerFormat) {
+    EXPECT_EQ(isoBuildTime("Nov  7 2026", "15:12:16"), "2026-11-07T15:12:16");
+    EXPECT_EQ(isoBuildTime("Jan 31 2027", "00:00:05"), "2027-01-31T00:00:05");
+}
+
+TEST(OtaBuildTimeTest, GarbageGivesEmpty) {
+    EXPECT_EQ(isoBuildTime("Foo  7 2026", "15:12:16"), "");
+    EXPECT_EQ(isoBuildTime("Nov  7 2026", "late"), "");
+    EXPECT_EQ(isoBuildTime(nullptr, "15:12:16"), "");
+}
