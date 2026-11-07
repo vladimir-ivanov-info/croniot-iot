@@ -125,6 +125,17 @@ ProbeVerdict evaluateProbe(uint64_t reachableAtMs, uint64_t deadlineMs);
 bool recordProbeResult(OtaRecord& record, ProbeVerdict verdict, uint8_t maxAttempts);
 
 // NVS stores the record as one string blob.
+// Download progress for the `ota_progress` event: the percent to report
+// once `written` of `total` bytes are in, or -1 while the next multiple
+// of `stepPercent` above `lastReported` has not been reached. 100 is
+// reported too, when the last byte arrives (verification comes after).
+int progressToReport(uint32_t written, uint32_t total, int lastReported, int stepPercent);
+
+// esp_app_desc_t's build date and time ("Nov  7 2026", "15:12:16", the
+// __DATE__/__TIME__ format) as "2026-11-07T15:12:16", so the value has
+// no spaces in an event's key=value message. Empty if it doesn't parse.
+std::string isoBuildTime(const char* date, const char* time);
+
 std::string encodeRecord(const OtaRecord& record);
 OtaRecord decodeRecord(const std::string& blob);
 

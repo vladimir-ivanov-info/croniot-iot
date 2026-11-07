@@ -106,5 +106,6 @@ idf_component_register(
         esp_app_format
         esp_timer
         app_update
+        bootloader_support
         mbedtls
 )
